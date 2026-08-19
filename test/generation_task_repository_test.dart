@@ -248,6 +248,7 @@ void main() {
           id: 'job-2',
           status: GenerationJobStatus.failed,
           promptVersionId: promptVersionId,
+          errorMessage: 'timeout',
         ),
       );
       await repository.saveJob(
@@ -266,7 +267,7 @@ void main() {
       final jobs = await repository.listJobs('task-1');
       expect(jobs.map((job) => job.status), [
         GenerationJobStatus.cancelled,
-        GenerationJobStatus.cancelled,
+        GenerationJobStatus.failed,
         GenerationJobStatus.completed,
       ]);
     });

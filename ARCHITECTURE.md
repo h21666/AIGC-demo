@@ -88,6 +88,7 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - First release queue concurrency is fixed at 1.
 - App restart recovery changes running tasks and jobs to paused.
 - Pause does not cancel a running cloud request; it prevents later jobs from starting.
+- Cancel preserves failed jobs and only marks unfinished work as cancelled.
 - Partial final failure is completed with a non-zero failed count. A task is failed only when every job finally fails, or when a task-level fatal error prevents startup.
 
 ## Cloud Generation
@@ -113,4 +114,5 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - `DeviceCapabilityService` inspects the current environment and decides whether local execution is worth attempting.
 - `LocalTfliteInterpreter` runs local inference through an isolate-backed worker and returns either a local result or a cloud fallback signal.
 - `LocalTfliteModelService` combines the capability report and interpreter output into a `HybridGenerationPlan`.
+- Local plans can refine the cloud prompt before the SiliconFlow request is sent.
 - Cloud fallback uses the existing SiliconFlow request shape so later queue integration can switch routes without rewriting the prompt payload.

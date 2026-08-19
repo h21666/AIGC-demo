@@ -53,9 +53,10 @@ void main() {
 
         expect(plan.route, LocalGenerationRoute.local);
         expect(plan.isCloudFallback, isFalse);
-        expect(plan.cloudRequest, isNull);
+        expect(plan.cloudRequest, isNotNull);
         expect(plan.localResult, isNotNull);
         expect(plan.localResult!.refinedPrompt, 'a calm landscape');
+        expect(plan.cloudRequest.prompt, 'a calm landscape');
         expect(plan.capability.canRunLocal, isTrue);
       },
     );
@@ -84,7 +85,7 @@ void main() {
       expect(plan.isCloudFallback, isTrue);
       expect(plan.cloudRequest, isNotNull);
       expect(
-        plan.cloudRequest!.prompt,
+        plan.cloudRequest.prompt,
         'a calm landscape with a mountain and river',
       );
       expect(plan.fallbackReason, isNotNull);

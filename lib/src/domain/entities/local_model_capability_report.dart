@@ -16,4 +16,13 @@ class LocalModelCapabilityReport {
   final List<String> reasons;
 
   bool get shouldFallbackToCloud => !canRunLocal;
+
+  Map<String, Object?> toJson() => {
+    'platform': platform,
+    'processor_count': processorCount,
+    'supports_isolate': supportsIsolate,
+    'model_available': modelAvailable,
+    'can_run_local': canRunLocal,
+    'reasons': reasons,
+  };
 }

@@ -7,8 +7,8 @@ class HybridGenerationPlan {
   const HybridGenerationPlan.local({
     required this.capability,
     required this.localResult,
+    required this.cloudRequest,
   }) : route = LocalGenerationRoute.local,
-       cloudRequest = null,
        fallbackReason = null;
 
   const HybridGenerationPlan.cloud({
@@ -21,7 +21,7 @@ class HybridGenerationPlan {
   final LocalGenerationRoute route;
   final LocalModelCapabilityReport capability;
   final LocalTfliteResult? localResult;
-  final SiliconFlowImageRequest? cloudRequest;
+  final SiliconFlowImageRequest cloudRequest;
   final String? fallbackReason;
 
   bool get isCloudFallback => route == LocalGenerationRoute.cloud;

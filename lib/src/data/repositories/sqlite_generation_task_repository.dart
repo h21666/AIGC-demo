@@ -192,13 +192,12 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
           'updated_at': now,
           'error_message': null,
         },
-        where: 'task_id = ? AND status IN (?, ?, ?, ?)',
+        where: 'task_id = ? AND status IN (?, ?, ?)',
         whereArgs: [
           id,
           GenerationJobStatus.pending.storageKey,
           GenerationJobStatus.running.storageKey,
           GenerationJobStatus.paused.storageKey,
-          GenerationJobStatus.failed.storageKey,
         ],
       );
       await txn.update(

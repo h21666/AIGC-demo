@@ -5,6 +5,9 @@ import 'package:uuid/uuid.dart';
 import '../../domain/entities/generated_asset.dart';
 import '../../domain/entities/generation_job.dart';
 import '../../domain/entities/generation_task.dart';
+import '../../domain/entities/hybrid_generation_plan.dart';
+import '../../domain/entities/local_model_capability_report.dart';
+import '../../domain/entities/local_tflite_request.dart';
 import '../../domain/entities/silicon_flow_image_request.dart';
 import '../../domain/enums/cloud_generation_failure_type.dart';
 import '../../domain/enums/generated_asset_source.dart';
@@ -16,6 +19,7 @@ import '../../domain/repositories/generation_task_repository.dart';
 import '../../domain/repositories/secure_api_key_store.dart';
 import '../clients/cloud_generation_exception.dart';
 import '../clients/image_generation_client.dart';
+import 'local_tflite_model_service.dart';
 import 'generated_image_downloader.dart';
 
 class CloudGenerationRunResult {
@@ -42,6 +46,7 @@ class CloudGenerationQueueRunner {
     required this.imageClient,
     required this.imageDownloader,
     required this.outputDirectory,
+    this.localModelService,
     this.defaultModel = 'Kwai-Kolors/Kolors',
     this.retryDelay = Duration.zero,
     Uuid? uuid,
@@ -53,6 +58,7 @@ class CloudGenerationQueueRunner {
   final ImageGenerationClient imageClient;
   final ImageDownloader imageDownloader;
   final Directory outputDirectory;
+  final LocalTfliteModelService? localModelService;
   final String defaultModel;
   final Duration retryDelay;
   final Uuid uuid;
@@ -112,11 +118,34 @@ class CloudGenerationQueueRunner {
       await taskRepository.saveJob(runningJob);
 
       try {
-        final request = _buildRequest(task, runningJob);
+        final plan = await _prepareGenerationPlan(task, runningJob);
+        final request = plan?.cloudRequest ?? _buildRequest(task, runningJob);
+        final routeName = plan?.route.name;
+        final fallbackReason = plan?.fallbackReason;
+        final localResult = plan?.localResult;
+        final localCapability = plan?.capability;
+        final metadata = <String, Object?>{
+          'provider': GenerationProvider.siliconFlow.storageKey,
+          'source_url': '',
+          'timings': const {},
+        };
+        if (routeName != null) {
+          metadata['generation_route'] = routeName;
+        }
+        if (fallbackReason != null) {
+          metadata['fallback_reason'] = fallbackReason;
+        }
+        if (localResult != null) {
+          metadata['local_result'] = localResult.toJson();
+        }
+        if (localCapability != null) {
+          metadata['local_capability'] = localCapability.toJson();
+        }
         final result = await imageClient.generateImages(
           apiKey: apiKey,
           request: request,
         );
+        metadata['source_url'] = result.imageUrls.first.toString();
         final imageUrl = result.imageUrls.first;
         final assetId = uuid.v4();
         final download = await imageDownloader.download(
@@ -134,11 +163,7 @@ class CloudGenerationQueueRunner {
           mimeType: download.mimeType,
           seed: result.seed?.toString(),
           promptSnapshot: task.promptSnapshot,
-          metadata: {
-            'provider': GenerationProvider.siliconFlow.storageKey,
-            'source_url': imageUrl.toString(),
-            'timings': result.timings,
-          },
+          metadata: {...metadata, 'timings': result.timings},
           createdAt: DateTime.now().toUtc(),
         );
         await assetRepository.save(asset);
@@ -224,6 +249,54 @@ class CloudGenerationQueueRunner {
     if (runnable.isEmpty) return null;
     runnable.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return runnable.first;
+  }
+
+  Future<HybridGenerationPlan?> _prepareGenerationPlan(
+    GenerationTask task,
+    GenerationJob job,
+  ) async {
+    if (task.provider != GenerationProvider.localTflite) {
+      return null;
+    }
+    if (localModelService == null) {
+      return HybridGenerationPlan.cloud(
+        capability: const LocalModelCapabilityReport(
+          platform: 'unknown',
+          processorCount: 0,
+          supportsIsolate: false,
+          modelAvailable: false,
+          canRunLocal: false,
+          reasons: ['Local model service is unavailable.'],
+        ),
+        cloudRequest: _buildRequest(task, job),
+        fallbackReason: 'Local model service is unavailable.',
+      );
+    }
+    return localModelService!.plan(_buildLocalRequest(task, job));
+  }
+
+  LocalTfliteRequest _buildLocalRequest(
+    GenerationTask task,
+    GenerationJob job,
+  ) {
+    final payload = {...task.requestPayload, ...job.requestPayload};
+    return LocalTfliteRequest(
+      modelPath: _readString(payload['model_path']),
+      prompt:
+          _readString(payload['prompt']) ??
+          _readString(task.promptSnapshot['content']) ??
+          '',
+      cloudModel: _readString(payload['cloud_model']) ?? defaultModel,
+      negativePrompt:
+          _readString(payload['negative_prompt']) ??
+          _readString(task.promptSnapshot['negativePrompt']),
+      imageSize: _readString(payload['image_size']) ?? '1024x1024',
+      batchSize: _readInt(payload['batch_size']) ?? 1,
+      numInferenceSteps: _readInt(payload['num_inference_steps']) ?? 20,
+      guidanceScale: _readDouble(payload['guidance_scale']) ?? 7.5,
+      seed: _readInt(payload['seed']),
+      extra: {'provider': task.provider.storageKey},
+    );
   }
 
   SiliconFlowImageRequest _buildRequest(

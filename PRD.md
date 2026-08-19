@@ -39,6 +39,7 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 - Queue concurrency is fixed at 1 for the first version.
 - Default retry policy is `maxRetries = 3`, meaning at most 4 total executions per job.
 - Running work is recovered as paused after app restart.
+- Cancel preserves failed jobs and only marks unfinished work as cancelled.
 - Partial final job failure still completes the task with `failedCount > 0`; only all-final-failed tasks become failed.
 - SiliconFlow image URLs must be downloaded and persisted immediately after generation.
 - API key storage is accessed through a secure-storage boundary. The first checked-in implementation for tests is in-memory; production secure storage is enabled when the platform plugin environment is available.
@@ -46,6 +47,7 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 - Asset lists must use thumbnails for preview flows to avoid decoding many original images at once.
 - Album export and media permission handling are accessed through interfaces so Android/iOS implementations can be swapped in without changing domain logic.
 - Local TFLite planning uses an isolate-backed interpreter boundary and falls back to the existing cloud request shape when local execution is not suitable.
+- When local inference succeeds, it may refine the prompt before the cloud request is sent.
 
 ## Out Of Scope For Phase 1
 

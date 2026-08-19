@@ -13,16 +13,23 @@ import 'package:aigc_studio/src/data/repositories/sqlite_generation_task_reposit
 import 'package:aigc_studio/src/data/repositories/sqlite_prompt_repository.dart';
 import 'package:aigc_studio/src/data/services/cloud_generation_queue_runner.dart';
 import 'package:aigc_studio/src/data/services/generated_image_downloader.dart';
+import 'package:aigc_studio/src/data/services/local_tflite_model_service.dart';
 import 'package:aigc_studio/src/data/storage/in_memory_secure_api_key_store.dart';
 import 'package:aigc_studio/src/domain/entities/generation_job.dart';
 import 'package:aigc_studio/src/domain/entities/generation_task.dart';
+import 'package:aigc_studio/src/domain/entities/local_model_capability_report.dart';
+import 'package:aigc_studio/src/domain/entities/local_tflite_request.dart';
+import 'package:aigc_studio/src/domain/entities/local_tflite_result.dart';
 import 'package:aigc_studio/src/domain/entities/prompt.dart';
 import 'package:aigc_studio/src/domain/entities/silicon_flow_image_request.dart';
 import 'package:aigc_studio/src/domain/entities/silicon_flow_image_result.dart';
+import 'package:aigc_studio/src/domain/enums/local_generation_route.dart';
 import 'package:aigc_studio/src/domain/enums/cloud_generation_failure_type.dart';
 import 'package:aigc_studio/src/domain/enums/generation_job_status.dart';
 import 'package:aigc_studio/src/domain/enums/generation_provider.dart';
 import 'package:aigc_studio/src/domain/enums/generation_task_status.dart';
+import 'package:aigc_studio/src/domain/repositories/device_capability_service.dart';
+import 'package:aigc_studio/src/domain/repositories/local_tflite_interpreter.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -190,6 +197,44 @@ void main() {
       expect(result.processed, isFalse);
       expect(result.error!.type, CloudGenerationFailureType.authentication);
     });
+
+    test(
+      'uses local planning before cloud generation for local tasks',
+      () async {
+        await _seedTaskAndJob(
+          taskRepository,
+          promptVersionId,
+          provider: GenerationProvider.localTflite,
+          promptContent: 'A neon skyline over a rainy street at dusk',
+        );
+        final localModelService = LocalTfliteModelService(
+          capabilityService: _FakeLocalCapabilityService(),
+          interpreter: _FakeLocalInterpreter(),
+        );
+        final client = _FakeImageGenerationClient.success();
+        final runner = CloudGenerationQueueRunner(
+          taskRepository: taskRepository,
+          assetRepository: assetRepository,
+          apiKeyStore: apiKeyStore,
+          imageClient: client,
+          imageDownloader: _FakeImageDownloader(),
+          outputDirectory: Directory(path.join(tempDir.path, 'images')),
+          localModelService: localModelService,
+        );
+
+        final result = await runner.runNextPendingJob();
+
+        expect(result.processed, isTrue);
+        expect(client.requests.single.prompt, 'A neon skyline over ...');
+        final asset = await assetRepository.getById(result.assetId!);
+        expect(asset, isNotNull);
+        expect(
+          asset!.metadata['generation_route'],
+          LocalGenerationRoute.local.name,
+        );
+        expect(asset.metadata['local_result'], isNotNull);
+      },
+    );
   });
 }
 
@@ -224,8 +269,10 @@ Future<String> _seedPrompt(AppDatabase database) async {
 
 Future<void> _seedTaskAndJob(
   SqliteGenerationTaskRepository repository,
-  String promptVersionId,
-) async {
+  String promptVersionId, {
+  GenerationProvider provider = GenerationProvider.siliconFlow,
+  String promptContent = 'A neon skyline',
+}) async {
   final timestamp = DateTime.utc(2026, 8, 19, 12, 0, 0);
   await repository.saveTask(
     GenerationTask(
@@ -233,14 +280,14 @@ Future<void> _seedTaskAndJob(
       promptId: 'prompt-1',
       promptVersionId: promptVersionId,
       status: GenerationTaskStatus.pending,
-      provider: GenerationProvider.siliconFlow,
+      provider: provider,
       requestPayload: const {
         'model': 'Kwai-Kolors/Kolors',
         'image_size': '1024x1024',
       },
-      promptSnapshot: const {
+      promptSnapshot: {
         'title': 'Prompt',
-        'content': 'A neon skyline',
+        'content': promptContent,
         'tags': ['city'],
       },
       totalJobs: 1,
@@ -253,7 +300,7 @@ Future<void> _seedTaskAndJob(
       id: 'job-1',
       taskId: 'task-1',
       status: GenerationJobStatus.pending,
-      provider: GenerationProvider.siliconFlow,
+      provider: provider,
       promptVersionId: promptVersionId,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -307,6 +354,32 @@ class _FakeImageDownloader implements ImageDownloader {
       file: file,
       mimeType: 'image/png',
       sizeBytes: bytes.length,
+    );
+  }
+}
+
+class _FakeLocalCapabilityService implements DeviceCapabilityService {
+  @override
+  Future<LocalModelCapabilityReport> inspect({String? modelPath}) async {
+    return const LocalModelCapabilityReport(
+      platform: 'android',
+      processorCount: 8,
+      supportsIsolate: true,
+      modelAvailable: true,
+      canRunLocal: true,
+      reasons: [],
+    );
+  }
+}
+
+class _FakeLocalInterpreter implements LocalTfliteInterpreter {
+  @override
+  Future<LocalTfliteResult> infer(LocalTfliteRequest request) async {
+    return LocalTfliteResult(
+      route: LocalGenerationRoute.local,
+      refinedPrompt: 'A neon skyline over ...',
+      confidence: 0.93,
+      raw: {'prompt': request.prompt},
     );
   }
 }

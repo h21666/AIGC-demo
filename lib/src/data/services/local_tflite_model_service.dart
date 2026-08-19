@@ -42,6 +42,11 @@ class LocalTfliteModelService {
       return HybridGenerationPlan.local(
         capability: capability,
         localResult: localResult,
+        cloudRequest: request.toCloudRequest(
+          promptOverride: localResult.refinedPrompt,
+          negativePromptOverride: localResult.negativePrompt,
+          seedOverride: localResult.seed,
+        ),
       );
     } on LocalTfliteException catch (error) {
       return HybridGenerationPlan.cloud(

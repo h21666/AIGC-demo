@@ -28,6 +28,7 @@
 - Pause running work without losing queued jobs.
 - Resume paused work from the correct pending job.
 - Cancel pending or running work and prevent further execution.
+- Preserve failed jobs when canceling a task.
 - Retry failed tasks up to the configured retry limit.
 - Persist task and job state in SQLite.
 - Recover running tasks and jobs as paused after app restart.
@@ -69,6 +70,7 @@
 
 - Detect whether local execution is supported on the current device.
 - Run local inference through an isolate-backed interpreter.
+- Refine the cloud prompt when local inference succeeds.
 - Return a cloud fallback plan when the local model is unavailable.
 - Return a cloud fallback plan when local inference raises an exception.
 - Keep the cloud request payload aligned with the existing SiliconFlow request schema.
