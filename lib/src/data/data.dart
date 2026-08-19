@@ -16,4 +16,5 @@ export 'services/generated_image_downloader.dart';
 export 'services/isolate_local_tflite_interpreter.dart';
 export 'services/local_tflite_model_service.dart';
 export 'services/static_media_permission_service.dart';
+export 'storage/flutter_secure_api_key_store.dart';
 export 'storage/in_memory_secure_api_key_store.dart';

@@ -101,7 +101,7 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - Generated image URLs are downloaded immediately and stored as `GeneratedAsset` records.
 - Error classification distinguishes authentication, rate limit, timeout, no-network, invalid request, server, and unknown failures.
 - Automatic retry is limited to retryable failures and respects each job's `maxAttempts`.
-- The first production secure-storage implementation is behind the `SecureApiKeyStore` interface. The current repository includes an in-memory implementation for tests and local core development because `flutter_secure_storage` requires Windows Developer Mode in this environment.
+- API keys are accessed through the `SecureApiKeyStore` interface. Runtime builds use `FlutterSecureApiKeyStore`, backed by `flutter_secure_storage` with Android encrypted shared preferences and iOS Keychain options. Tests can still use the in-memory implementation.
 
 ## Asset Library
 

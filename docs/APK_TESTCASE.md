@@ -73,7 +73,7 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Steps | 1. Open `设置`. 2. Enter a SiliconFlow API key. 3. Tap `保存 API Key`. 4. Check the status icon beside the field. 5. Tap `清除 API Key`. |
 | Expected Result | Saving shows a success message. Status icon changes after saving. Clearing removes the key from the field. |
 | Pass/Fail |  |
-| Notes | Current MVP stores the key in memory; true Android secure storage is a remaining task. |
+| Notes | Runtime builds store the key through `flutter_secure_storage`; verify persistence after app restart when testing on a real phone. |
 
 ## TC-APK-005 Create Generation Task
 
@@ -155,7 +155,6 @@ The APK passes MVP manual testing if:
 
 ## Known MVP Limitations
 
-- API key storage is currently an in-memory implementation, not final Android Keystore secure storage.
 - Android gallery export is not yet the final system album implementation.
 - Real TFLite image generation model is not yet integrated; current local mode is architecture/fallback focused.
 - The APK is a Debug build, not a production Release build.

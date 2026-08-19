@@ -17,7 +17,7 @@ import '../data/services/cloud_generation_queue_runner.dart';
 import '../data/services/file_album_exporter.dart';
 import '../data/services/generated_image_downloader.dart';
 import '../data/services/static_media_permission_service.dart';
-import '../data/storage/in_memory_secure_api_key_store.dart';
+import '../data/storage/flutter_secure_api_key_store.dart';
 import '../domain/enums/media_permission_status.dart';
 
 class AppRuntime {
@@ -41,7 +41,7 @@ class AppRuntime {
   final SqliteSettingsRepository settings;
   final CloudGenerationQueueRunner queueRunner;
   final AssetLibraryService assetLibrary;
-  final InMemorySecureApiKeyStore apiKeyStore;
+  final FlutterSecureApiKeyStore apiKeyStore;
 
   Timer? _queueTimer;
 
@@ -90,7 +90,7 @@ Future<AppRuntime> createAppRuntime() async {
     database,
     cacheDirectories: [cacheDirectory, thumbnailDirectory],
   );
-  final apiKeyStore = InMemorySecureApiKeyStore();
+  const apiKeyStore = FlutterSecureApiKeyStore();
   final assetThumbnailService = AssetThumbnailService(
     assetRepository: assets,
     thumbnailDirectory: thumbnailDirectory,
