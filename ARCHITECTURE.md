@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 6 adds local TFLite planning: device capability checks, isolate execution, local inference outcomes, and automatic fallback planning to cloud generation.
+Phase 7 adds settings and logging foundations plus test coverage for API key settings, cache cleanup, integration smoke checks, and exception handling.
 
 ## Directory Layout
 
@@ -24,6 +24,7 @@ lib/
       clients/
         silicon_flow_image_client.dart
       services/
+        application_settings_service.dart
         asset_library_service.dart
         asset_thumbnail_service.dart
         cloud_generation_queue_runner.dart
@@ -32,6 +33,8 @@ lib/
         generated_image_downloader.dart
         isolate_local_tflite_interpreter.dart
         local_tflite_model_service.dart
+        sqlite_log_repository.dart
+        sqlite_settings_repository.dart
     domain/
       domain.dart
       entities/
@@ -116,3 +119,9 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - `LocalTfliteModelService` combines the capability report and interpreter output into a `HybridGenerationPlan`.
 - Local plans can refine the cloud prompt before the SiliconFlow request is sent.
 - Cloud fallback uses the existing SiliconFlow request shape so later queue integration can switch routes without rewriting the prompt payload.
+
+## Settings and Logs
+
+- `SqliteSettingsRepository` stores key-value preferences and can clear file-system cache directories.
+- `AppSettingsService` wraps secure API key storage together with general app settings and cache cleanup.
+- `SqliteLogRepository` stores structured logs, filters them by level and age, exports them as JSON, and clears the log table.

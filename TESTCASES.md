@@ -51,7 +51,7 @@
 
 ## Later Phases
 
-- Settings, logs, cache cleanup, widget tests, integration tests, and exception tests.
+- Final polish, release notes, and demo preparation.
 
 ## Phase 5 Asset Library
 
@@ -74,3 +74,13 @@
 - Return a cloud fallback plan when the local model is unavailable.
 - Return a cloud fallback plan when local inference raises an exception.
 - Keep the cloud request payload aligned with the existing SiliconFlow request schema.
+
+## Phase 7 Settings, Logs, and Tests
+
+- Save and clear the API key through the settings service.
+- Persist general settings in SQLite.
+- Clear cache directories through the settings repository boundary.
+- Append, filter, export, and clear structured logs.
+- Run a widget smoke test against the app shell.
+- Run an integration smoke test against the app entry point.
+- Verify cloud and local exception classification paths.
