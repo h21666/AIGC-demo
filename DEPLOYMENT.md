@@ -8,7 +8,7 @@ Pick one first target before doing release work:
 2. Web build for quick stakeholder preview.
 3. Source-code handoff for engineering review.
 
-The current recommendation is Android APK after a real Android device test, because the product is mobile-oriented and depends on local storage, permissions, and future gallery integration.
+The current recommendation is web preview first, then Android APK. Web is faster to publish for stakeholder review, while Android is the real product target.
 
 ## Preflight
 
@@ -35,9 +35,11 @@ The current recommendation is Android APK after a real Android device test, beca
 
 ## Web Preview Path
 
-- Build web only as a lightweight preview.
+- Deploy with GitHub Pages from the `main` branch.
+- Build with `flutter build web --release --base-href "/AIGC-demo/"`.
 - Treat SQLite/platform storage differences as a known limitation.
 - Do not use web preview as the final proof for mobile permissions or local model behavior.
+- Use the published Pages URL for quick stakeholder review.
 
 ## Release Risks
 
@@ -48,6 +50,7 @@ The current recommendation is Android APK after a real Android device test, beca
 
 ## Release Output
 
+- GitHub Pages preview URL.
 - APK or web artifact.
 - Test result summary.
 - Known limitations.
