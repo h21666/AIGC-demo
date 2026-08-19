@@ -92,3 +92,7 @@
 - Test case document separates completed phases from deployment follow-up.
 - Deployment checklist identifies Android, web, and source-code handoff options.
 - Demo script explains the product flow without requiring unfinished full pages.
+
+## Manual APK Testing
+
+- `docs/APK_TESTCASE.md` records the phone-side manual MVP test flow for installing the ARM64 APK, creating prompts, creating tasks, checking task controls, configuring API key behavior, inspecting the asset library, and validating graceful error handling.
