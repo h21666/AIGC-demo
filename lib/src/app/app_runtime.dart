@@ -1,0 +1,131 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:path/path.dart' as path;
+import 'package:sqflite/sqflite.dart';
+
+import '../core/database/app_database.dart';
+import '../data/clients/silicon_flow_image_client.dart';
+import '../data/repositories/sqlite_generated_asset_repository.dart';
+import '../data/repositories/sqlite_generation_task_repository.dart';
+import '../data/repositories/sqlite_log_repository.dart';
+import '../data/repositories/sqlite_prompt_repository.dart';
+import '../data/repositories/sqlite_settings_repository.dart';
+import '../data/services/asset_library_service.dart';
+import '../data/services/asset_thumbnail_service.dart';
+import '../data/services/cloud_generation_queue_runner.dart';
+import '../data/services/file_album_exporter.dart';
+import '../data/services/generated_image_downloader.dart';
+import '../data/services/static_media_permission_service.dart';
+import '../data/storage/in_memory_secure_api_key_store.dart';
+import '../domain/enums/media_permission_status.dart';
+
+class AppRuntime {
+  AppRuntime({
+    required this.database,
+    required this.prompts,
+    required this.tasks,
+    required this.assets,
+    required this.logs,
+    required this.settings,
+    required this.queueRunner,
+    required this.assetLibrary,
+    required this.apiKeyStore,
+  });
+
+  final AppDatabase database;
+  final SqlitePromptRepository prompts;
+  final SqliteGenerationTaskRepository tasks;
+  final SqliteGeneratedAssetRepository assets;
+  final SqliteLogRepository logs;
+  final SqliteSettingsRepository settings;
+  final CloudGenerationQueueRunner queueRunner;
+  final AssetLibraryService assetLibrary;
+  final InMemorySecureApiKeyStore apiKeyStore;
+
+  Timer? _queueTimer;
+
+  void startQueuePolling() {
+    _queueTimer ??= Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => runQueueOnce(),
+    );
+  }
+
+  Future<void> runQueueOnce() async {
+    try {
+      await queueRunner.runNextPendingJob();
+    } on Object {
+      // The runner persists job-level errors. The UI remains alive even if
+      // an unexpected platform/network error escapes the runner.
+    }
+  }
+
+  Future<void> dispose() async {
+    _queueTimer?.cancel();
+    _queueTimer = null;
+    await database.close();
+  }
+}
+
+Future<AppRuntime> createAppRuntime() async {
+  final database = AppDatabase();
+  await database.database;
+
+  final prompts = SqlitePromptRepository(database);
+  final tasks = SqliteGenerationTaskRepository(database);
+  final assets = SqliteGeneratedAssetRepository(database);
+  final logs = SqliteLogRepository(database);
+  final databasesDirectory = Directory(await getDatabasesPath());
+  final cacheDirectory = Directory(
+    path.join(databasesDirectory.path, 'aigc_studio_cache'),
+  );
+  final outputDirectory = Directory(
+    path.join(databasesDirectory.path, 'aigc_studio_assets'),
+  );
+  final thumbnailDirectory = Directory(
+    path.join(databasesDirectory.path, 'aigc_studio_thumbnails'),
+  );
+  final settings = SqliteSettingsRepository(
+    database,
+    cacheDirectories: [cacheDirectory, thumbnailDirectory],
+  );
+  final apiKeyStore = InMemorySecureApiKeyStore();
+  final assetThumbnailService = AssetThumbnailService(
+    assetRepository: assets,
+    thumbnailDirectory: thumbnailDirectory,
+  );
+  final assetLibrary = AssetLibraryService(
+    assetRepository: assets,
+    thumbnailService: assetThumbnailService,
+    permissionService: const StaticMediaPermissionService(
+      MediaPermissionStatus.granted,
+    ),
+    albumExporter: FileAlbumExporter(
+      Directory(path.join(databasesDirectory.path, 'aigc_studio_exports')),
+    ),
+  );
+  final queueRunner = CloudGenerationQueueRunner(
+    taskRepository: tasks,
+    assetRepository: assets,
+    apiKeyStore: apiKeyStore,
+    imageClient: SiliconFlowImageClient(),
+    imageDownloader: GeneratedImageDownloader(),
+    outputDirectory: outputDirectory,
+  );
+
+  await tasks.recoverUnfinishedTasks();
+  final runtime = AppRuntime(
+    database: database,
+    prompts: prompts,
+    tasks: tasks,
+    assets: assets,
+    logs: logs,
+    settings: settings,
+    queueRunner: queueRunner,
+    assetLibrary: assetLibrary,
+    apiKeyStore: apiKeyStore,
+  );
+  runtime.startQueuePolling();
+  return runtime;
+}
