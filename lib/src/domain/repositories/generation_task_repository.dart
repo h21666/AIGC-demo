@@ -25,4 +25,6 @@ abstract interface class GenerationTaskRepository {
   Future<List<GenerationJob>> listJobs(String taskId);
 
   Future<void> saveJob(GenerationJob job);
+
+  Future<void> recoverUnfinishedTasks();
 }
