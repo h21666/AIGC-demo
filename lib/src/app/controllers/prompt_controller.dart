@@ -11,6 +11,7 @@ import '../../domain/enums/generation_task_status.dart';
 import '../../domain/enums/log_level.dart';
 import '../../domain/repositories/prompt_repository.dart';
 import '../app_runtime.dart';
+import 'settings_controller.dart';
 
 class PromptDraft {
   const PromptDraft({
@@ -77,7 +78,10 @@ class PromptController {
         id: _uuid.v4(),
         level: LogLevel.warning,
         message: '提示词已归档',
-        context: <String, Object?>{'promptId': prompt.id, 'title': prompt.title},
+        context: <String, Object?>{
+          'promptId': prompt.id,
+          'title': prompt.title,
+        },
         createdAt: DateTime.now().toUtc(),
       ),
     );
@@ -90,7 +94,10 @@ class PromptController {
         id: _uuid.v4(),
         level: LogLevel.warning,
         message: '提示词已删除',
-        context: <String, Object?>{'promptId': prompt.id, 'title': prompt.title},
+        context: <String, Object?>{
+          'promptId': prompt.id,
+          'title': prompt.title,
+        },
         createdAt: DateTime.now().toUtc(),
       ),
     );
@@ -157,6 +164,7 @@ class PromptController {
   Future<void> createTaskFromPrompt({
     required Prompt prompt,
     required int count,
+    GenerationProvider provider = GenerationProvider.siliconFlow,
   }) async {
     final current = await runtime.prompts.getById(prompt.id) ?? prompt;
     final versionId = current.currentVersionId;
@@ -165,15 +173,26 @@ class PromptController {
     }
     final now = DateTime.now().toUtc();
     final taskId = _uuid.v4();
+    final localModelPath = provider == GenerationProvider.localTflite
+        ? (await runtime.settings.get(SettingsController.localModelPathKey))
+              ?.value
+              .trim()
+        : null;
+    if (provider == GenerationProvider.localTflite &&
+        (localModelPath == null || localModelPath.isEmpty)) {
+      throw StateError('请先在设置中填写本地 TFLite 模型路径。');
+    }
     final task = GenerationTask(
       id: taskId,
       promptId: current.id,
       promptVersionId: versionId,
       status: GenerationTaskStatus.pending,
-      provider: GenerationProvider.siliconFlow,
-      requestPayload: const {
+      provider: provider,
+      requestPayload: {
         'model': 'Kwai-Kolors/Kolors',
+        'cloud_model': 'Kwai-Kolors/Kolors',
         'image_size': '1024x1024',
+        if (localModelPath != null) 'model_path': localModelPath,
       },
       promptSnapshot: {
         'title': current.title,
@@ -192,7 +211,7 @@ class PromptController {
           id: _uuid.v4(),
           taskId: taskId,
           status: GenerationJobStatus.pending,
-          provider: GenerationProvider.siliconFlow,
+          provider: provider,
           promptVersionId: versionId,
           requestPayload: const {},
           createdAt: now,
@@ -209,6 +228,7 @@ class PromptController {
           'taskId': taskId,
           'promptId': current.id,
           'count': count,
+          'provider': provider.storageKey,
         },
         createdAt: DateTime.now().toUtc(),
       ),

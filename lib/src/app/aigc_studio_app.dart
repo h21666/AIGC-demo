@@ -15,6 +15,7 @@ import '../domain/entities/generation_task.dart';
 import '../domain/entities/prompt.dart';
 import '../domain/entities/prompt_version.dart';
 import '../domain/enums/generation_task_status.dart';
+import '../domain/enums/generation_provider.dart';
 import 'app_runtime.dart';
 
 class AigcStudioApp extends StatelessWidget {
@@ -312,13 +313,17 @@ class _PromptsPageState extends State<_PromptsPage> {
   }
 
   Future<void> _createTask(Prompt prompt) async {
-    final count = await showDialog<int>(
+    final options = await showDialog<_TaskOptions>(
       context: context,
       builder: (_) => const _TaskCountDialog(),
     );
-    if (count == null) return;
+    if (options == null) return;
     try {
-      await _controller.createTaskFromPrompt(prompt: prompt, count: count);
+      await _controller.createTaskFromPrompt(
+        prompt: prompt,
+        count: options.count,
+        provider: options.provider,
+      );
       await widget.runtime.runQueueOnce();
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -839,7 +844,9 @@ class _SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<_SettingsPage> {
   final _apiKeyController = TextEditingController();
+  final _localModelPathController = TextEditingController();
   var _hasApiKey = false;
+  var _hasLocalModelPath = false;
   late final LogController _logController;
   late final SettingsController _settingsController;
 
@@ -848,15 +855,22 @@ class _SettingsPageState extends State<_SettingsPage> {
     super.initState();
     _logController = LogController(widget.runtime);
     _settingsController = SettingsController(widget.runtime);
-    _loadApiKey();
+    _loadSettings();
   }
 
-  Future<void> _loadApiKey() async {
-    final key = await _settingsController.loadApiKey();
+  Future<void> _loadSettings() async {
+    final results = await Future.wait([
+      _settingsController.loadApiKey(),
+      _settingsController.loadLocalModelPath(),
+    ]);
     if (!mounted) return;
+    final key = results[0];
+    final localModelPath = results[1];
     setState(() {
       _hasApiKey = key != null && key.isNotEmpty;
       _apiKeyController.text = key ?? '';
+      _hasLocalModelPath = localModelPath != null && localModelPath.isNotEmpty;
+      _localModelPathController.text = localModelPath ?? '';
     });
   }
 
@@ -877,9 +891,21 @@ class _SettingsPageState extends State<_SettingsPage> {
     }
   }
 
+  Future<void> _saveLocalModelPath() async {
+    final saved = await _settingsController.saveLocalModelPath(
+      _localModelPathController.text,
+    );
+    if (!mounted) return;
+    setState(() => _hasLocalModelPath = saved);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(saved ? '本地模型路径已保存' : '本地模型路径已清除')));
+  }
+
   @override
   void dispose() {
     _apiKeyController.dispose();
+    _localModelPathController.dispose();
     super.dispose();
   }
 
@@ -918,6 +944,28 @@ class _SettingsPageState extends State<_SettingsPage> {
               if (mounted) setState(() => _hasApiKey = false);
             },
             child: const Text('清除 API Key'),
+          ),
+          const Divider(height: 32),
+          Text('本地 TFLite', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _localModelPathController,
+            decoration: InputDecoration(
+              labelText: '模型文件路径',
+              hintText: '/data/user/0/.../model.tflite',
+              helperText: '模型文件不打包进 APK，请填写设备上可读取的绝对路径',
+              suffixIcon: Icon(
+                _hasLocalModelPath ? Icons.check_circle : Icons.memory_outlined,
+                color: _hasLocalModelPath ? Colors.green : Colors.orange,
+              ),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _saveLocalModelPath,
+            icon: const Icon(Icons.memory_outlined),
+            label: const Text('保存本地模型路径'),
           ),
           const Divider(height: 32),
           ListTile(
@@ -1051,18 +1099,51 @@ class _PromptEditorDialogState extends State<_PromptEditorDialog> {
   }
 }
 
-class _TaskCountDialog extends StatelessWidget {
+class _TaskOptions {
+  const _TaskOptions({required this.count, required this.provider});
+
+  final int count;
+  final GenerationProvider provider;
+}
+
+class _TaskCountDialog extends StatefulWidget {
   const _TaskCountDialog();
+
+  @override
+  State<_TaskCountDialog> createState() => _TaskCountDialogState();
+}
+
+class _TaskCountDialogState extends State<_TaskCountDialog> {
+  var _provider = GenerationProvider.siliconFlow;
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('创建生成任务'),
-      content: const Text('请选择要生成的图片数量'),
+      content: SegmentedButton<GenerationProvider>(
+        segments: const [
+          ButtonSegment(
+            value: GenerationProvider.siliconFlow,
+            icon: Icon(Icons.cloud_outlined),
+            label: Text('云端'),
+          ),
+          ButtonSegment(
+            value: GenerationProvider.localTflite,
+            icon: Icon(Icons.memory_outlined),
+            label: Text('本地'),
+          ),
+        ],
+        selected: {_provider},
+        onSelectionChanged: (selection) {
+          setState(() => _provider = selection.single);
+        },
+      ),
       actions: [
         for (final count in [1, 2, 4])
           TextButton(
-            onPressed: () => Navigator.of(context).pop(count),
+            onPressed: () =>
+                Navigator.of(context)
+                    .pop(_TaskOptions(count: count, provider: _provider)),
             child: Text('$count 张'),
           ),
       ],

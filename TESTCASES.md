@@ -69,11 +69,14 @@
 ## Phase 6 Local TFLite
 
 - Detect whether local execution is supported on the current device.
-- Run local inference through an isolate-backed interpreter.
-- Refine the cloud prompt when local inference succeeds.
+- Load a real TFLite model through `tflite_flutter` inside an isolate.
+- Reject unsupported tensor counts, types, and output shapes with a readable fallback reason.
+- Convert a supported RGB output tensor to PNG.
+- Persist local PNG output as a `GeneratedAsset` with `source=local`.
+- Complete a local job without reading an API key or calling SiliconFlow.
 - Return a cloud fallback plan when the local model is unavailable.
 - Return a cloud fallback plan when local inference raises an exception.
-- Keep the cloud request payload aligned with the existing SiliconFlow request schema.
+- Keep the cloud fallback request payload aligned with the existing SiliconFlow request schema.
 
 ## Phase 7 Settings, Logs, and Tests
 
@@ -110,5 +113,6 @@
 - Implemented in the current build: missing API key marks queued jobs as authentication failures without retries or saved assets.
 - Implemented in the current build: cancelled tasks are hidden from the production queue while persisted records and generated assets remain intact.
 - Blocked by missing API key: successful SiliconFlow generation, image download, asset persistence, thumbnail verification, and Android gallery export.
-- Not completed: real TFLite model inference, release signing, Release APK, and demo recording.
+- Implemented: real `tflite_flutter` interpreter path and local PNG persistence; a compatible text-conditioned image model still needs to be supplied for semantic local image generation.
+- Not completed: approved production TFLite model validation, release signing, Release APK, and demo recording.
 - Environment limitation: the static analyzer session stalled before returning a final result and is not recorded as passed; the targeted automated suite and APK compilation passed separately.

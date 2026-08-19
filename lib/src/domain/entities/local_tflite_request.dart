@@ -3,6 +3,7 @@ import '../entities/silicon_flow_image_request.dart';
 class LocalTfliteRequest {
   const LocalTfliteRequest({
     required this.modelPath,
+    required this.outputPath,
     required this.prompt,
     required this.cloudModel,
     this.negativePrompt,
@@ -15,6 +16,7 @@ class LocalTfliteRequest {
   });
 
   final String? modelPath;
+  final String outputPath;
   final String prompt;
   final String cloudModel;
   final String? negativePrompt;
@@ -45,6 +47,7 @@ class LocalTfliteRequest {
 
   Map<String, Object?> toJson() => {
     'model_path': modelPath,
+    'output_path': outputPath,
     'prompt': prompt,
     'cloud_model': cloudModel,
     'negative_prompt': negativePrompt,
@@ -59,6 +62,7 @@ class LocalTfliteRequest {
   factory LocalTfliteRequest.fromJson(Map<String, Object?> json) {
     return LocalTfliteRequest(
       modelPath: json['model_path'] as String?,
+      outputPath: json['output_path'] as String? ?? '',
       prompt: json['prompt'] as String? ?? '',
       cloudModel: json['cloud_model'] as String? ?? 'Kwai-Kolors/Kolors',
       negativePrompt: json['negative_prompt'] as String?,

@@ -15,6 +15,7 @@ class SettingsController {
   final AppRuntime runtime;
   final AppSettingsService service;
   final Uuid _uuid = const Uuid();
+  static const localModelPathKey = 'local_model_path';
 
   Future<String?> loadApiKey() => service.readApiKey();
 
@@ -28,6 +29,23 @@ class SettingsController {
   Future<void> clearApiKey() async {
     await service.clearApiKey();
     await _appendLog('API Key 已清除');
+  }
+
+  Future<String?> loadLocalModelPath() async {
+    final setting = await service.readSetting(localModelPathKey);
+    return setting?.value;
+  }
+
+  Future<bool> saveLocalModelPath(String value) async {
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      await service.deleteSetting(localModelPathKey);
+      await _appendLog('本地 TFLite 模型路径已清除');
+      return false;
+    }
+    await service.saveSetting(localModelPathKey, normalized);
+    await _appendLog('本地 TFLite 模型路径已保存');
+    return true;
   }
 
   Future<void> clearCache() async {

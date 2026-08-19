@@ -17,6 +17,7 @@ import 'package:aigc_studio/src/data/services/local_tflite_model_service.dart';
 import 'package:aigc_studio/src/data/storage/in_memory_secure_api_key_store.dart';
 import 'package:aigc_studio/src/domain/entities/generation_job.dart';
 import 'package:aigc_studio/src/domain/entities/generation_task.dart';
+import 'package:aigc_studio/src/domain/enums/generated_asset_source.dart';
 import 'package:aigc_studio/src/domain/entities/local_model_capability_report.dart';
 import 'package:aigc_studio/src/domain/entities/local_tflite_request.dart';
 import 'package:aigc_studio/src/domain/entities/local_tflite_result.dart';
@@ -234,9 +235,11 @@ void main() {
         final result = await runner.runNextPendingJob();
 
         expect(result.processed, isTrue);
-        expect(client.requests.single.prompt, 'A neon skyline over ...');
+        expect(client.requests, isEmpty);
         final asset = await assetRepository.getById(result.assetId!);
-        expect(asset, isNotNull);
+        if (asset == null) fail('Local asset was not persisted.');
+        expect(asset.source, GeneratedAssetSource.local);
+        expect(asset.filePath, isNotEmpty);
         expect(
           asset!.metadata['generation_route'],
           LocalGenerationRoute.local.name,
@@ -384,10 +387,17 @@ class _FakeLocalCapabilityService implements DeviceCapabilityService {
 class _FakeLocalInterpreter implements LocalTfliteInterpreter {
   @override
   Future<LocalTfliteResult> infer(LocalTfliteRequest request) async {
+    final file = File(request.outputPath);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(const [137, 80, 78, 71]);
     return LocalTfliteResult(
       route: LocalGenerationRoute.local,
       refinedPrompt: 'A neon skyline over ...',
       confidence: 0.93,
+      generatedImagePath: file.path,
+      width: 1,
+      height: 1,
+      sizeBytes: 4,
       raw: {'prompt': request.prompt},
     );
   }

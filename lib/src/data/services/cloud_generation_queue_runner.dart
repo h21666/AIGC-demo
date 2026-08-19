@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 
 import '../../domain/entities/generated_asset.dart';
@@ -76,30 +77,39 @@ class CloudGenerationQueueRunner {
       return const CloudGenerationRunResult(processed: false);
     }
 
-    final apiKey = await apiKeyStore.readApiKey();
-    if (apiKey == null || apiKey.trim().isEmpty) {
-      final error = const CloudGenerationException(
-        type: CloudGenerationFailureType.authentication,
-        message: 'SiliconFlow API key is not configured.',
-        retryable: false,
-      );
-      final completedAt = DateTime.now().toUtc();
-      for (final job in pendingJobs) {
-        await taskRepository.saveJob(
-          _copyJob(
-            job,
-            status: GenerationJobStatus.failed,
-            completedAt: completedAt,
-            errorMessage: error.message,
-          ),
+    // A cloud-only task can fail before consuming a retry attempt when its
+    // required credential is absent. Local tasks still need to run first so
+    // they can complete without a key or fall back with a clear error.
+    if (task.provider != GenerationProvider.localTflite) {
+      final apiKey = await apiKeyStore.readApiKey();
+      if (apiKey == null || apiKey.trim().isEmpty) {
+        final error = const CloudGenerationException(
+          type: CloudGenerationFailureType.authentication,
+          message: 'SiliconFlow API key is not configured.',
+          retryable: false,
+        );
+        final completedAt = DateTime.now().toUtc();
+        for (final job in pendingJobs) {
+          await taskRepository.saveJob(
+            _copyJob(
+              job,
+              status: GenerationJobStatus.failed,
+              completedAt: completedAt,
+              errorMessage: error.message,
+            ),
+          );
+        }
+        await taskRepository.updateTaskStatus(
+          task.id,
+          GenerationTaskStatus.failed,
+        );
+        return CloudGenerationRunResult(
+          processed: true,
+          taskId: task.id,
+          jobId: pendingJobs.first.id,
+          error: error,
         );
       }
-      return CloudGenerationRunResult(
-        processed: true,
-        taskId: task.id,
-        jobId: pendingJobs.first.id,
-        error: error,
-      );
     }
 
     final job = pendingJobs.first;
@@ -109,11 +119,10 @@ class CloudGenerationQueueRunner {
         GenerationTaskStatus.running,
       );
     }
-    return _runJob(apiKey: apiKey.trim(), task: task, job: job);
+    return _runJob(task: task, job: job);
   }
 
   Future<CloudGenerationRunResult> _runJob({
-    required String apiKey,
     required GenerationTask task,
     required GenerationJob job,
   }) async {
@@ -133,6 +142,22 @@ class CloudGenerationQueueRunner {
 
       try {
         final plan = await _prepareGenerationPlan(task, runningJob);
+        if (plan != null && !plan.isCloudFallback) {
+          return await _saveLocalResult(
+            task: task,
+            job: runningJob,
+            plan: plan,
+          );
+        }
+
+        final apiKey = await apiKeyStore.readApiKey();
+        if (apiKey == null || apiKey.trim().isEmpty) {
+          throw const CloudGenerationException(
+            type: CloudGenerationFailureType.authentication,
+            message: 'SiliconFlow API key is not configured. Local fallback also requires a cloud key.',
+            retryable: false,
+          );
+        }
         final request = plan?.cloudRequest ?? _buildRequest(task, runningJob);
         final routeName = plan?.route.name;
         final fallbackReason = plan?.fallbackReason;
@@ -156,7 +181,7 @@ class CloudGenerationQueueRunner {
           metadata['local_capability'] = localCapability.toJson();
         }
         final result = await imageClient.generateImages(
-          apiKey: apiKey,
+          apiKey: apiKey.trim(),
           request: request,
         );
         metadata['source_url'] = result.imageUrls.first.toString();
@@ -246,6 +271,68 @@ class CloudGenerationQueueRunner {
     );
   }
 
+  Future<CloudGenerationRunResult> _saveLocalResult({
+    required GenerationTask task,
+    required GenerationJob job,
+    required HybridGenerationPlan plan,
+  }) async {
+    final localResult = plan.localResult;
+    final imagePath = localResult?.generatedImagePath;
+    if (localResult == null || imagePath == null || imagePath.isEmpty) {
+      throw const CloudGenerationException(
+        type: CloudGenerationFailureType.unknown,
+        message: 'Local inference completed without an image file.',
+        retryable: false,
+      );
+    }
+    final imageFile = File(imagePath);
+    if (!await imageFile.exists()) {
+      throw const CloudGenerationException(
+        type: CloudGenerationFailureType.unknown,
+        message: 'Local inference image file is missing.',
+        retryable: false,
+      );
+    }
+
+    final assetId = uuid.v4();
+    final asset = GeneratedAsset(
+      id: assetId,
+      source: GeneratedAssetSource.local,
+      filePath: imagePath,
+      taskId: task.id,
+      jobId: job.id,
+      width: localResult.width,
+      height: localResult.height,
+      sizeBytes: localResult.sizeBytes ?? await imageFile.length(),
+      mimeType: 'image/png',
+      seed: localResult.seed?.toString(),
+      promptSnapshot: task.promptSnapshot,
+      metadata: {
+        'provider': GenerationProvider.localTflite.storageKey,
+        'generation_route': plan.route.name,
+        'local_result': localResult.toJson(),
+        'local_capability': plan.capability.toJson(),
+      },
+      createdAt: DateTime.now().toUtc(),
+    );
+    await assetRepository.save(asset);
+    await taskRepository.saveJob(
+      _copyJob(
+        job,
+        status: GenerationJobStatus.completed,
+        resultImageId: asset.id,
+        completedAt: DateTime.now().toUtc(),
+        errorMessage: null,
+      ),
+    );
+    return CloudGenerationRunResult(
+      processed: true,
+      taskId: task.id,
+      jobId: job.id,
+      assetId: asset.id,
+    );
+  }
+
   Future<GenerationTask?> _nextRunnableTask() async {
     final tasks = await taskRepository.listTasks(
       statuses: const {
@@ -296,6 +383,7 @@ class CloudGenerationQueueRunner {
     final payload = {...task.requestPayload, ...job.requestPayload};
     return LocalTfliteRequest(
       modelPath: _readString(payload['model_path']),
+      outputPath: path.join(outputDirectory.path, '${job.id}.png'),
       prompt:
           _readString(payload['prompt']) ??
           _readString(task.promptSnapshot['content']) ??

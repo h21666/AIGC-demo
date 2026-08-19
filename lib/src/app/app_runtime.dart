@@ -14,8 +14,11 @@ import '../data/repositories/sqlite_settings_repository.dart';
 import '../data/services/asset_library_service.dart';
 import '../data/services/asset_thumbnail_service.dart';
 import '../data/services/cloud_generation_queue_runner.dart';
+import '../data/services/default_local_model_capability_service.dart';
 import '../data/services/file_album_exporter.dart';
 import '../data/services/generated_image_downloader.dart';
+import '../data/services/isolate_local_tflite_interpreter.dart';
+import '../data/services/local_tflite_model_service.dart';
 import '../data/services/platform_album_exporter.dart';
 import '../data/services/platform_media_permission_service.dart';
 import '../data/services/static_media_permission_service.dart';
@@ -106,7 +109,9 @@ Future<AppRuntime> createAppRuntime() async {
     albumExporter: Platform.isAndroid
         ? const PlatformAlbumExporter()
         : FileAlbumExporter(
-            Directory(path.join(databasesDirectory.path, 'aigc_studio_exports')),
+            Directory(
+              path.join(databasesDirectory.path, 'aigc_studio_exports'),
+            ),
           ),
   );
   final queueRunner = CloudGenerationQueueRunner(
@@ -116,6 +121,10 @@ Future<AppRuntime> createAppRuntime() async {
     imageClient: SiliconFlowImageClient(),
     imageDownloader: GeneratedImageDownloader(),
     outputDirectory: outputDirectory,
+    localModelService: const LocalTfliteModelService(
+      capabilityService: DefaultLocalModelCapabilityService(),
+      interpreter: IsolateLocalTfliteInterpreter(),
+    ),
   );
 
   await tasks.recoverUnfinishedTasks();

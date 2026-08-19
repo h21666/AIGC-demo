@@ -7,7 +7,7 @@ A Flutter app for prompt management, queued image generation, local asset storag
 - Phases 1-3: project skeleton, SQLite prompt module, and durable task queue implemented.
 - Phase 4: SiliconFlow client, secure API key storage, retry/error handling, download, and queue integration implemented; valid-key end-to-end generation remains unverified.
 - Phase 5: asset metadata, thumbnails, preview, multi-select, and Android gallery export implemented; successful real-image export remains unverified.
-- Phase 6: local capability checks, isolate execution scaffold, and cloud fallback implemented; a real TFLite image model is not bundled.
+- Phase 6: official `tflite_flutter` runtime, isolate execution, model contract validation, local PNG output, local asset persistence, and cloud fallback implemented; a text-conditioned image model is not bundled.
 - Phase 7: settings, logs, presentation controllers, unit/widget/integration test sources, and manual APK cases implemented.
 - Phase 8: ARM64 Debug APK builds, installs, and launches on a Xiaomi Android 16 device; release signing and demo recording remain.
 
@@ -35,5 +35,5 @@ The integration smoke test requires a desktop/mobile toolchain. In the current W
 ## Remaining Milestones
 
 - Verify a real SiliconFlow generation, downloaded asset, thumbnail, and Android gallery export with a user-provided API key.
-- Integrate a licensed, device-compatible TFLite model and its tokenizer/input-output contract, or ship with the documented cloud fallback limitation.
+- Validate an approved, device-compatible text-to-image TFLite model package and its tokenizer/input-output contract; see `docs/LOCAL_TFLITE.md`.
 - Configure production application identity, signing, release APK, and demo recording.

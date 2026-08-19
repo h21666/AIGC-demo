@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8 refreshes release-facing documentation and prepares deployment decisions without changing the stable core architecture.
+Phase 6 TFLite runtime integration is implemented. The remaining local-AI dependency is an approved, device-compatible text-to-image model package and its model-specific tokenizer/tensor contract.
 
 ## Directory Layout
 
@@ -122,10 +122,11 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 ## Local TFLite
 
 - `DeviceCapabilityService` inspects the current environment and decides whether local execution is worth attempting.
-- `LocalTfliteInterpreter` runs local inference through an isolate-backed worker and returns either a local result or a cloud fallback signal.
+- `LocalTfliteInterpreter` loads `tflite_flutter` inside an isolate, validates the one-input/one-RGB-output contract, runs inference, and writes a PNG result.
 - `LocalTfliteModelService` combines the capability report and interpreter output into a `HybridGenerationPlan`.
-- Local plans can refine the cloud prompt before the SiliconFlow request is sent.
-- Cloud fallback uses the existing SiliconFlow request shape so later queue integration can switch routes without rewriting the prompt payload.
+- Local success is persisted directly as a `GeneratedAsset` with `source=local`; it does not call SiliconFlow.
+- Cloud fallback uses the existing SiliconFlow request shape when the model is missing, incompatible, or inference fails.
+- The adapter contract and device setup are documented in `docs/LOCAL_TFLITE.md`; no model weights are bundled in the APK.
 
 ## Settings and Logs
 

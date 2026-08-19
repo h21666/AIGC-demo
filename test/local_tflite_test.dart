@@ -22,7 +22,7 @@ void main() {
     setUp(() async {
       tempDir = await Directory.systemTemp.createTemp('aigc_local_tflite_');
       modelFile = File(path.join(tempDir.path, 'model.tflite'));
-      await modelFile.writeAsBytes(List<int>.generate(64, (index) => index));
+      await modelFile.writeAsBytes(List<int>.generate(256, (index) => index));
     });
 
     tearDown(() async {
@@ -40,12 +40,13 @@ void main() {
             processorCount: 8,
             supportsIsolate: true,
           ),
-          interpreter: const IsolateLocalTfliteInterpreter(),
+          interpreter: _SuccessfulInterpreter(),
         );
 
         final plan = await service.plan(
           LocalTfliteRequest(
             modelPath: modelFile.path,
+            outputPath: path.join(tempDir.path, 'output.png'),
             prompt: 'a calm landscape',
             cloudModel: 'Kwai-Kolors/Kolors',
           ),
@@ -76,6 +77,7 @@ void main() {
       final plan = await service.plan(
         LocalTfliteRequest(
           modelPath: modelFile.path,
+          outputPath: path.join(tempDir.path, 'output.png'),
           prompt: 'a calm landscape with a mountain and river',
           cloudModel: 'Kwai-Kolors/Kolors',
         ),
@@ -104,6 +106,7 @@ void main() {
         final plan = await service.plan(
           LocalTfliteRequest(
             modelPath: modelFile.path,
+            outputPath: path.join(tempDir.path, 'output.png'),
             prompt: 'a calm landscape',
             cloudModel: 'Kwai-Kolors/Kolors',
           ),
@@ -129,6 +132,7 @@ void main() {
       final plan = await service.plan(
         LocalTfliteRequest(
           modelPath: modelFile.path,
+          outputPath: path.join(tempDir.path, 'output.png'),
           prompt: 'a calm landscape',
           cloudModel: 'Kwai-Kolors/Kolors',
         ),
@@ -176,5 +180,19 @@ class _ThrowingInterpreter implements LocalTfliteInterpreter {
   @override
   Future<LocalTfliteResult> infer(LocalTfliteRequest request) async {
     throw const LocalTfliteException('Local model failed.');
+  }
+}
+
+class _SuccessfulInterpreter implements LocalTfliteInterpreter {
+  @override
+  Future<LocalTfliteResult> infer(LocalTfliteRequest request) async {
+    return LocalTfliteResult(
+      route: LocalGenerationRoute.local,
+      refinedPrompt: request.prompt,
+      generatedImagePath: request.outputPath,
+      width: 64,
+      height: 64,
+      sizeBytes: 128,
+    );
   }
 }
