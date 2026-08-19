@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/.localappdata/
+/*.apk
 
 # Symbolication related
 app.*.symbols

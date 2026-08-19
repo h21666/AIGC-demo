@@ -2,13 +2,13 @@
 
 ## Deployment Decision
 
-Pick one first target before doing release work:
+The current target is an ARM64 Android APK for internal testing. Web remains available for stakeholder preview, and source-code handoff remains available for engineering review.
 
 1. Android APK for internal testing.
 2. Web build for quick stakeholder preview.
 3. Source-code handoff for engineering review.
 
-The current recommendation is web preview first, then Android APK. Web is faster to publish for stakeholder review, while Android is the real product target.
+The ARM64 Debug APK has been installed and launched successfully on a Xiaomi Android 16 device. This confirms packaging and startup, but does not replace valid-key cloud and gallery-export verification.
 
 ## Preflight
 
@@ -43,10 +43,11 @@ The current recommendation is web preview first, then Android APK. Web is faster
 
 ## Release Risks
 
-- Production secure storage still needs the platform plugin implementation.
-- Android gallery export needs a platform exporter behind `AlbumExporter`.
+- Secure API key storage is implemented with `flutter_secure_storage`; a real key must still be checked for persistence after restart.
+- Android gallery export is implemented through MediaStore/platform code; successful export still requires a real generated image test.
 - Real TFLite inference needs an actual model file and platform performance validation.
-- Integration test execution depends on available platform tooling.
+- Analyzer and automated test commands have intermittently stalled in the current Windows environment, so the full quality gate must be rerun before release.
+- Cloud generation, image persistence, and gallery export cannot be marked passed without a valid SiliconFlow API key.
 
 ## Release Output
 

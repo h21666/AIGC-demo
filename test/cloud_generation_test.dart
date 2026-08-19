@@ -194,8 +194,17 @@ void main() {
 
       final result = await runner.runNextPendingJob();
 
-      expect(result.processed, isFalse);
+      expect(result.processed, isTrue);
       expect(result.error!.type, CloudGenerationFailureType.authentication);
+      expect(result.taskId, 'task-1');
+      expect(result.jobId, 'job-1');
+      final jobs = await taskRepository.listJobs('task-1');
+      expect(jobs.single.status, GenerationJobStatus.failed);
+      expect(jobs.single.attempt, 0);
+      expect(jobs.single.errorMessage, contains('API key'));
+      final task = await taskRepository.getTaskById('task-1');
+      expect(task!.status, GenerationTaskStatus.failed);
+      expect(await assetRepository.list(), isEmpty);
     });
 
     test(

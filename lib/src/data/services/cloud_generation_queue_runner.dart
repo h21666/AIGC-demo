@@ -64,18 +64,6 @@ class CloudGenerationQueueRunner {
   final Uuid uuid;
 
   Future<CloudGenerationRunResult> runNextPendingJob() async {
-    final apiKey = await apiKeyStore.readApiKey();
-    if (apiKey == null || apiKey.trim().isEmpty) {
-      return CloudGenerationRunResult(
-        processed: false,
-        error: const CloudGenerationException(
-          type: CloudGenerationFailureType.authentication,
-          message: 'SiliconFlow API key is not configured.',
-          retryable: false,
-        ),
-      );
-    }
-
     final task = await _nextRunnableTask();
     if (task == null) {
       return const CloudGenerationRunResult(processed: false);
@@ -86,6 +74,32 @@ class CloudGenerationQueueRunner {
         .toList();
     if (pendingJobs.isEmpty) {
       return const CloudGenerationRunResult(processed: false);
+    }
+
+    final apiKey = await apiKeyStore.readApiKey();
+    if (apiKey == null || apiKey.trim().isEmpty) {
+      final error = const CloudGenerationException(
+        type: CloudGenerationFailureType.authentication,
+        message: 'SiliconFlow API key is not configured.',
+        retryable: false,
+      );
+      final completedAt = DateTime.now().toUtc();
+      for (final job in pendingJobs) {
+        await taskRepository.saveJob(
+          _copyJob(
+            job,
+            status: GenerationJobStatus.failed,
+            completedAt: completedAt,
+            errorMessage: error.message,
+          ),
+        );
+      }
+      return CloudGenerationRunResult(
+        processed: true,
+        taskId: task.id,
+        jobId: pendingJobs.first.id,
+        error: error,
+      );
     }
 
     final job = pendingJobs.first;

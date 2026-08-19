@@ -4,21 +4,19 @@ A Flutter app for prompt management, queued image generation, local asset storag
 
 ## Current State
 
-- Phase 1: project skeleton and domain boundaries
-- Phase 2: SQLite-backed prompt module
-- Phase 3: durable generation task queue
-- Phase 4: SiliconFlow cloud generation core integration
-- Phase 5: generated asset library core
-- Phase 6: local TFLite planning and cloud fallback
-- Phase 7: settings, logs, and testing
-- Phase 8: release cleanup and deployment preparation
+- Phases 1-3: project skeleton, SQLite prompt module, and durable task queue implemented.
+- Phase 4: SiliconFlow client, secure API key storage, retry/error handling, download, and queue integration implemented; valid-key end-to-end generation remains unverified.
+- Phase 5: asset metadata, thumbnails, preview, multi-select, and Android gallery export implemented; successful real-image export remains unverified.
+- Phase 6: local capability checks, isolate execution scaffold, and cloud fallback implemented; a real TFLite image model is not bundled.
+- Phase 7: settings, logs, presentation controllers, unit/widget/integration test sources, and manual APK cases implemented.
+- Phase 8: ARM64 Debug APK builds, installs, and launches on a Xiaomi Android 16 device; release signing and demo recording remain.
 
 ## Project Layout
 
 - `lib/src/domain`: entities, enums, and repository contracts
 - `lib/src/core/database`: SQLite schema and runtime database bootstrap
 - `lib/src/data`: SQLite repositories, SiliconFlow client, queue runner, and asset library services
-- `lib/src/app`: app shell
+- `lib/src/app`: Flutter pages and presentation controllers
 
 ## Quality Gates
 
@@ -34,6 +32,8 @@ The integration smoke test requires a desktop/mobile toolchain. In the current W
 - `DEMO_SCRIPT.md`: demo flow for stakeholder walkthroughs.
 - `GIT_WORKFLOW.md`: branch strategy and safe merge-conflict simulation notes.
 
-## Next Milestones
+## Remaining Milestones
 
-- Choose release target: Android APK, internal web build, or source-code handoff.
+- Verify a real SiliconFlow generation, downloaded asset, thumbnail, and Android gallery export with a user-provided API key.
+- Integrate a licensed, device-compatible TFLite model and its tokenizer/input-output contract, or ship with the documented cloud fallback limitation.
+- Configure production application identity, signing, release APK, and demo recording.

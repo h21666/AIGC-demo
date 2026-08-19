@@ -16,6 +16,8 @@ import '../data/services/asset_thumbnail_service.dart';
 import '../data/services/cloud_generation_queue_runner.dart';
 import '../data/services/file_album_exporter.dart';
 import '../data/services/generated_image_downloader.dart';
+import '../data/services/platform_album_exporter.dart';
+import '../data/services/platform_media_permission_service.dart';
 import '../data/services/static_media_permission_service.dart';
 import '../data/storage/flutter_secure_api_key_store.dart';
 import '../domain/enums/media_permission_status.dart';
@@ -98,12 +100,14 @@ Future<AppRuntime> createAppRuntime() async {
   final assetLibrary = AssetLibraryService(
     assetRepository: assets,
     thumbnailService: assetThumbnailService,
-    permissionService: const StaticMediaPermissionService(
-      MediaPermissionStatus.granted,
-    ),
-    albumExporter: FileAlbumExporter(
-      Directory(path.join(databasesDirectory.path, 'aigc_studio_exports')),
-    ),
+    permissionService: Platform.isAndroid
+        ? const PlatformMediaPermissionService()
+        : const StaticMediaPermissionService(MediaPermissionStatus.granted),
+    albumExporter: Platform.isAndroid
+        ? const PlatformAlbumExporter()
+        : FileAlbumExporter(
+            Directory(path.join(databasesDirectory.path, 'aigc_studio_exports')),
+          ),
   );
   final queueRunner = CloudGenerationQueueRunner(
     taskRepository: tasks,

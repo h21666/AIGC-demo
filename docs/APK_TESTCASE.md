@@ -2,7 +2,7 @@
 
 ## Test Target
 
-- APK: `AIGC-Studio-arm64-debug.apk`
+- APK: `build/app/outputs/flutter-apk/app-debug.apk`
 - Platform: Android phone, Android 7.0 / API 24 or above
 - CPU architecture: ARM64 / `arm64-v8a`
 - Build type: Debug APK
@@ -22,6 +22,19 @@ Open App
 ```
 
 Cloud image generation requires a valid SiliconFlow API key and network access. If no valid API key is available, the expected result is a readable failure state instead of an app crash.
+
+## Execution Record (2026-08-20)
+
+| Item | Result | Evidence / Limitation |
+|---|---|---|
+| ARM64 APK installation | Pass | Installed on Xiaomi `2510DRK44C`, Android 16, `arm64-v8a`. |
+| Application startup | Pass | `MainActivity` became the foreground activity; dashboard rendered; no fatal startup exception was found. |
+| Basic no-key local workflow | Completed | User completed the basic local workflow without a SiliconFlow key. |
+| Missing-key generation path | Implemented in installed update | Queued jobs become non-retryable authentication failures and no asset is saved; a valid-key success path remains unavailable. |
+| Cancelled task visibility | Implemented in installed update | Cancelled records remain persisted but are hidden from the production task queue; repeat the manual cancel action for final acceptance. |
+| Valid-key cloud generation | Blocked | No SiliconFlow API key is available. |
+| Real image persistence and gallery export | Blocked | Requires a successful cloud generation result. |
+| Real TFLite inference | Not implemented | No compatible model or model input/output contract is available. |
 
 ## Pre-conditions
 
@@ -84,7 +97,7 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Steps | 1. Ensure at least one prompt exists. 2. Open `提示词`. 3. Open the prompt menu. 4. Tap `创建生成任务`. 5. Choose `1 张`. 6. Open `任务`. |
 | Expected Result | A new task appears in the task queue. It shows task status, progress percentage, success count, failed count, and total job count. |
 | Pass/Fail |  |
-| Notes | Without a valid API key, task execution should fail gracefully instead of crashing. |
+| Notes | Without a valid API key, pending jobs are marked as non-retryable authentication failures, the task becomes failed, and no asset is saved. |
 
 ## TC-APK-006 Task Pause/Resume/Cancel
 
@@ -93,7 +106,7 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Priority | Must-Have |
 | Purpose | Verify task control buttons do not crash the app and update state. |
 | Steps | 1. Create a task with 2 or 4 images. 2. Open `任务`. 3. Tap `暂停` while the task is pending/running. 4. Tap `恢复`. 5. Create another task and tap `取消`. |
-| Expected Result | Task status changes according to the selected action. Cancelled task does not continue launching new jobs. App remains responsive. |
+| Expected Result | Pause and resume update the task state. After cancellation, the task disappears from the task queue, does not launch new jobs, and any already generated assets remain available. App remains responsive. |
 | Pass/Fail |  |
 | Notes | Pause does not promise to cancel an already-sent cloud request. |
 
@@ -115,7 +128,7 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Priority | Must-Have |
 | Purpose | Verify common cloud errors do not crash the app. |
 | Steps | 1. Clear the API key. 2. Create a generation task. 3. Observe task behavior. 4. Enter an invalid API key and create another task. 5. Turn off network and create another task. |
-| Expected Result | App does not crash. Task records failed state or readable error behavior for missing key, invalid key, or no network. |
+| Expected Result | App does not crash. A missing key produces a non-retryable authentication failure and saves no asset. Invalid key and no-network errors produce readable failed states according to retry policy. |
 | Pass/Fail |  |
 | Notes | Exact message depends on the SiliconFlow/network response. |
 
@@ -128,7 +141,7 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Steps | 1. Complete at least one successful cloud generation. 2. Open `素材`. 3. Tap an asset card. 4. Select multiple assets if available. |
 | Expected Result | Asset thumbnails/images are shown. Tapping toggles selected state. Selected assets show checkboxes. |
 | Pass/Fail |  |
-| Notes | Current MVP uses local file export; final Android gallery export remains to be completed. |
+| Notes | Android runtime export should save selected images into the system gallery under `Pictures/AIGC Studio`. Android 9 and below may request storage permission before export. |
 
 ## TC-APK-010 Cache Cleanup
 
@@ -141,6 +154,17 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Pass/Fail |  |
 | Notes |  |
 
+## TC-APK-011 Log Viewer
+
+| Field | Content |
+|---|---|
+| Priority | Should-Have |
+| Purpose | Verify the log page can open, filter, export, and clear local logs. |
+| Steps | 1. Open `设置`. 2. Tap `查看日志`. 3. Switch between log level filters. 4. Tap `导出日志`. 5. Tap `清空日志`. |
+| Expected Result | Log page opens normally. Log entries are filterable. Export opens the JSON payload. Clear removes local log entries without crashing. |
+| Pass/Fail |  |
+| Notes | If the app has not recorded any operational logs yet, the page may initially appear empty. |
+
 ## Overall Acceptance Criteria
 
 The APK passes MVP manual testing if:
@@ -152,9 +176,9 @@ The APK passes MVP manual testing if:
 5. Missing/invalid API key and network failure do not crash the app.
 6. With a valid API key, cloud generation can produce an asset or record a readable failure.
 7. Asset library opens without memory-related crash.
+8. Log viewer opens and can export/clear local logs.
 
 ## Known MVP Limitations
 
-- Android gallery export is not yet the final system album implementation.
 - Real TFLite image generation model is not yet integrated; current local mode is architecture/fallback focused.
 - The APK is a Debug build, not a production Release build.

@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
+import 'package:flutter/services.dart';
 
+import '../app/controllers/asset_controller.dart';
+import '../app/controllers/log_controller.dart';
+import '../app/controllers/prompt_controller.dart';
+import '../app/controllers/settings_controller.dart';
+import '../app/controllers/task_controller.dart';
+import '../app/pages/logs_page.dart';
 import '../domain/entities/generated_asset_preview.dart';
-import '../domain/entities/generation_job.dart';
 import '../domain/entities/generation_task.dart';
 import '../domain/entities/prompt.dart';
-import '../domain/enums/generation_job_status.dart';
-import '../domain/enums/generation_provider.dart';
+import '../domain/entities/prompt_version.dart';
 import '../domain/enums/generation_task_status.dart';
 import 'app_runtime.dart';
 
@@ -248,37 +252,27 @@ class _PromptsPage extends StatefulWidget {
 
 class _PromptsPageState extends State<_PromptsPage> {
   late Future<List<Prompt>> _prompts;
-  final _uuid = const Uuid();
+  late final PromptController _controller;
+  var _includeArchived = false;
 
   @override
   void initState() {
     super.initState();
+    _controller = PromptController(widget.runtime);
     _reload();
   }
 
   void _reload() {
-    _prompts = widget.runtime.prompts.list();
+    _prompts = _controller.loadPrompts(includeArchived: _includeArchived);
   }
 
   Future<void> _editPrompt([Prompt? existing]) async {
-    final result = await showDialog<_PromptDraft>(
+    final result = await showDialog<PromptDraft>(
       context: context,
       builder: (_) => _PromptEditorDialog(existing: existing),
     );
     if (result == null) return;
-    final now = DateTime.now().toUtc();
-    final prompt = Prompt(
-      id: existing?.id ?? _uuid.v4(),
-      title: result.title,
-      content: result.content,
-      negativePrompt: result.negativePrompt,
-      tags: result.tags,
-      description: existing?.description,
-      currentVersionId: existing?.currentVersionId,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    );
-    await widget.runtime.prompts.save(prompt);
+    await _controller.savePrompt(existing: existing, draft: result);
     if (!mounted) return;
     setState(_reload);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -287,8 +281,34 @@ class _PromptsPageState extends State<_PromptsPage> {
   }
 
   Future<void> _deletePrompt(Prompt prompt) async {
-    await widget.runtime.prompts.delete(prompt.id);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('删除提示词'),
+        content: Text('确定删除「${prompt.title}」吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _controller.deletePrompt(prompt);
     if (mounted) setState(_reload);
+  }
+
+  Future<void> _archivePrompt(Prompt prompt) async {
+    await _controller.archivePrompt(prompt);
+    if (!mounted) return;
+    setState(_reload);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('提示词已归档')));
   }
 
   Future<void> _createTask(Prompt prompt) async {
@@ -297,53 +317,16 @@ class _PromptsPageState extends State<_PromptsPage> {
       builder: (_) => const _TaskCountDialog(),
     );
     if (count == null) return;
-    final current = await widget.runtime.prompts.getById(prompt.id) ?? prompt;
-    final versionId = current.currentVersionId;
-    if (versionId == null) {
-      _showError('提示词还没有可用版本，请先保存一次。');
+    try {
+      await _controller.createTaskFromPrompt(prompt: prompt, count: count);
+      await widget.runtime.runQueueOnce();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('任务已创建，可在任务页面查看进度')));
+    } on Object catch (error) {
+      _showError(error.toString());
       return;
     }
-    final now = DateTime.now().toUtc();
-    final taskId = _uuid.v4();
-    final task = GenerationTask(
-      id: taskId,
-      promptId: current.id,
-      promptVersionId: versionId,
-      status: GenerationTaskStatus.pending,
-      provider: GenerationProvider.siliconFlow,
-      requestPayload: const {
-        'model': 'Kwai-Kolors/Kolors',
-        'image_size': '1024x1024',
-      },
-      promptSnapshot: {
-        'title': current.title,
-        'content': current.content,
-        'negativePrompt': current.negativePrompt,
-        'tags': current.tags,
-      },
-      totalJobs: count,
-      createdAt: now,
-      updatedAt: now,
-    );
-    await widget.runtime.tasks.saveTask(task);
-    for (var index = 0; index < count; index++) {
-      await widget.runtime.tasks.saveJob(
-        GenerationJob(
-          id: _uuid.v4(),
-          taskId: taskId,
-          status: GenerationJobStatus.pending,
-          provider: GenerationProvider.siliconFlow,
-          promptVersionId: versionId,
-          requestPayload: const {},
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-    }
-    await widget.runtime.runQueueOnce();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('任务已创建，可在任务页面查看进度')));
   }
 
   void _showError(String message) {
@@ -352,10 +335,157 @@ class _PromptsPageState extends State<_PromptsPage> {
     );
   }
 
+  Future<void> _exportPrompts() async {
+    final json = await _controller.exportPrompts();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('导出提示词 JSON'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(child: SelectableText(json)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: json));
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
+            },
+            child: const Text('复制'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _importPrompts() async {
+    final json = await showDialog<String>(
+      context: context,
+      builder: (_) => const _JsonInputDialog(
+        title: '导入提示词 JSON',
+        hintText: '粘贴导出的提示词 JSON',
+      ),
+    );
+    if (json == null || json.trim().isEmpty) return;
+    try {
+      final result = await _controller.importPrompts(json);
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '导入 ${result.importedCount} 条，跳过 ${result.skippedCount} 条，失败 ${result.failedCount} 条',
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      _showError(error.toString());
+    }
+  }
+
+  Future<void> _showVersions(Prompt prompt) async {
+    final List<PromptVersion> versions = await _controller.loadVersions(
+      prompt.id,
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${prompt.title} 的历史版本'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 420,
+          child: versions.isEmpty
+              ? const Center(child: Text('暂无历史版本'))
+              : ListView.separated(
+                  itemCount: versions.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final version = versions[index];
+                    return Card(
+                      child: ListTile(
+                        title: Text('V${version.versionNumber}'),
+                        subtitle: Text(
+                          '${version.changeNote ?? '自动保存'}\n'
+                          '${version.createdAt.toLocal()}',
+                        ),
+                        isThreeLine: true,
+                        trailing: TextButton(
+                          onPressed: () async {
+                            Navigator.of(dialogContext).pop();
+                            try {
+                              await _controller.rollbackToVersion(
+                                promptId: prompt.id,
+                                versionId: version.id,
+                              );
+                              if (!mounted) return;
+                              setState(_reload);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '已回退到 V${version.versionNumber}',
+                                  ),
+                                ),
+                              );
+                            } on Object catch (error) {
+                              _showError(error.toString());
+                            }
+                          },
+                          child: const Text('回退'),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final actionLabel = _includeArchived ? '隐藏归档' : '显示归档';
     return Scaffold(
-      appBar: AppBar(title: const Text('提示词')),
+      appBar: AppBar(
+        title: const Text('提示词'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'export':
+                  _exportPrompts();
+                  break;
+                case 'import':
+                  _importPrompts();
+                  break;
+                case 'toggle_archived':
+                  setState(() {
+                    _includeArchived = !_includeArchived;
+                    _reload();
+                  });
+                  break;
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'export', child: Text('导出 JSON')),
+              const PopupMenuItem(value: 'import', child: Text('导入 JSON')),
+              PopupMenuItem(value: 'toggle_archived', child: Text(actionLabel)),
+            ],
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _editPrompt,
         icon: const Icon(Icons.add),
@@ -369,7 +499,9 @@ class _PromptsPageState extends State<_PromptsPage> {
           }
           final prompts = snapshot.data!;
           if (prompts.isEmpty) {
-            return const Center(child: Text('还没有提示词，点击右下角新建'));
+            return Center(
+              child: Text(_includeArchived ? '归档提示词为空' : '还没有提示词，点击右下角新建'),
+            );
           }
           return RefreshIndicator(
             onRefresh: () async => setState(_reload),
@@ -384,7 +516,8 @@ class _PromptsPageState extends State<_PromptsPage> {
                     title: Text(prompt.title),
                     subtitle: Text(
                       '${prompt.content}\n'
-                      '${prompt.tags.isEmpty ? '无标签' : prompt.tags.join(' · ')}',
+                      '${prompt.tags.isEmpty ? '无标签' : prompt.tags.join(' · ')}\n'
+                      '版本 ${prompt.currentVersionId == null ? '—' : '已保存'}',
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -393,10 +526,14 @@ class _PromptsPageState extends State<_PromptsPage> {
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'generate') _createTask(prompt);
+                        if (value == 'versions') _showVersions(prompt);
+                        if (value == 'archive') _archivePrompt(prompt);
                         if (value == 'delete') _deletePrompt(prompt);
                       },
                       itemBuilder: (_) => const [
                         PopupMenuItem(value: 'generate', child: Text('创建生成任务')),
+                        PopupMenuItem(value: 'versions', child: Text('历史版本')),
+                        PopupMenuItem(value: 'archive', child: Text('归档')),
                         PopupMenuItem(value: 'delete', child: Text('删除')),
                       ],
                     ),
@@ -421,12 +558,14 @@ class _TasksPage extends StatefulWidget {
 }
 
 class _TasksPageState extends State<_TasksPage> {
+  late final TaskController _controller;
   late Future<List<GenerationTask>> _tasks;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    _controller = TaskController(widget.runtime);
     _reload();
     _timer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) setState(_reload);
@@ -434,7 +573,7 @@ class _TasksPageState extends State<_TasksPage> {
   }
 
   void _reload() {
-    _tasks = widget.runtime.tasks.listTasks(limit: 50);
+    _tasks = _controller.loadTasks(limit: 50);
   }
 
   @override
@@ -445,10 +584,9 @@ class _TasksPageState extends State<_TasksPage> {
 
   Future<void> _action(
     GenerationTask task,
-    Future<void> Function(String id) action,
+    Future<void> Function(GenerationTask task) action,
   ) async {
-    await action(task.id);
-    await widget.runtime.runQueueOnce();
+    await action(task);
     if (mounted) setState(_reload);
   }
 
@@ -519,26 +657,20 @@ class _TasksPageState extends State<_TasksPage> {
                             if (task.status == GenerationTaskStatus.running ||
                                 task.status == GenerationTaskStatus.pending)
                               TextButton(
-                                onPressed: () => _action(
-                                  task,
-                                  widget.runtime.tasks.pauseTask,
-                                ),
+                                onPressed: () =>
+                                    _action(task, _controller.pauseTask),
                                 child: const Text('暂停'),
                               ),
                             if (task.status == GenerationTaskStatus.paused)
                               TextButton(
-                                onPressed: () => _action(
-                                  task,
-                                  widget.runtime.tasks.resumeTask,
-                                ),
+                                onPressed: () =>
+                                    _action(task, _controller.resumeTask),
                                 child: const Text('恢复'),
                               ),
                             if (!task.isTerminal)
                               TextButton(
-                                onPressed: () => _action(
-                                  task,
-                                  widget.runtime.tasks.cancelTask,
-                                ),
+                                onPressed: () =>
+                                    _action(task, _controller.cancelTask),
                                 child: const Text('取消'),
                               ),
                             if (task.status == GenerationTaskStatus.failed ||
@@ -546,10 +678,8 @@ class _TasksPageState extends State<_TasksPage> {
                                         GenerationTaskStatus.completed &&
                                     task.failedJobs > 0))
                               TextButton(
-                                onPressed: () => _action(
-                                  task,
-                                  widget.runtime.tasks.retryTask,
-                                ),
+                                onPressed: () =>
+                                    _action(task, _controller.retryTask),
                                 child: const Text('重试失败项'),
                               ),
                           ],
@@ -577,23 +707,23 @@ class _AssetsPage extends StatefulWidget {
 }
 
 class _AssetsPageState extends State<_AssetsPage> {
+  late final AssetController _controller;
   late Future<List<GeneratedAssetPreview>> _assets;
   final _selectedIds = <String>{};
 
   @override
   void initState() {
     super.initState();
+    _controller = AssetController(widget.runtime);
     _reload();
   }
 
   void _reload() {
-    _assets = widget.runtime.assetLibrary.listPreviews(limit: 100);
+    _assets = _controller.loadAssets(limit: 100);
   }
 
   Future<void> _exportSelected() async {
-    final result = await widget.runtime.assetLibrary.exportSelected(
-      _selectedIds.toList(),
-    );
+    final result = await _controller.exportSelected(_selectedIds);
     if (!mounted) return;
     setState(() {
       _selectedIds.clear();
@@ -710,15 +840,19 @@ class _SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<_SettingsPage> {
   final _apiKeyController = TextEditingController();
   var _hasApiKey = false;
+  late final LogController _logController;
+  late final SettingsController _settingsController;
 
   @override
   void initState() {
     super.initState();
+    _logController = LogController(widget.runtime);
+    _settingsController = SettingsController(widget.runtime);
     _loadApiKey();
   }
 
   Future<void> _loadApiKey() async {
-    final key = await widget.runtime.apiKeyStore.readApiKey();
+    final key = await _settingsController.loadApiKey();
     if (!mounted) return;
     setState(() {
       _hasApiKey = key != null && key.isNotEmpty;
@@ -728,19 +862,15 @@ class _SettingsPageState extends State<_SettingsPage> {
 
   Future<void> _saveApiKey() async {
     final key = _apiKeyController.text.trim();
-    if (key.isEmpty) {
-      await widget.runtime.apiKeyStore.deleteApiKey();
-    } else {
-      await widget.runtime.apiKeyStore.writeApiKey(key);
-    }
+    final hasApiKey = await _settingsController.saveApiKey(key);
     if (!mounted) return;
-    setState(() => _hasApiKey = key.isNotEmpty);
+    setState(() => _hasApiKey = hasApiKey);
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('API Key 已保存')));
   }
 
   Future<void> _clearCache() async {
-    await widget.runtime.settings.clearCache();
+    await _settingsController.clearCache();
     if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('缓存已清理')));
@@ -783,7 +913,7 @@ class _SettingsPageState extends State<_SettingsPage> {
           ),
           OutlinedButton(
             onPressed: () async {
-              await widget.runtime.apiKeyStore.deleteApiKey();
+              await _settingsController.clearApiKey();
               _apiKeyController.clear();
               if (mounted) setState(() => _hasApiKey = false);
             },
@@ -795,6 +925,18 @@ class _SettingsPageState extends State<_SettingsPage> {
             title: const Text('清理缓存'),
             subtitle: const Text('删除缩略图和本地缓存文件'),
             onTap: _clearCache,
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('查看日志'),
+            subtitle: const Text('查看本地运行记录、导出或清空'),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => LogsPage(controller: _logController),
+                ),
+              );
+            },
           ),
           const ListTile(
             leading: Icon(Icons.info_outline),
@@ -850,7 +992,7 @@ class _PromptEditorDialogState extends State<_PromptEditorDialog> {
     final content = _contentController.text.trim();
     if (title.isEmpty || content.isEmpty) return;
     Navigator.of(context).pop(
-      _PromptDraft(
+      PromptDraft(
         title: title,
         content: content,
         negativePrompt: _negativeController.text.trim().isEmpty
@@ -928,18 +1070,50 @@ class _TaskCountDialog extends StatelessWidget {
   }
 }
 
-class _PromptDraft {
-  const _PromptDraft({
-    required this.title,
-    required this.content,
-    required this.tags,
-    this.negativePrompt,
-  });
+class _JsonInputDialog extends StatefulWidget {
+  const _JsonInputDialog({required this.title, required this.hintText});
 
   final String title;
-  final String content;
-  final String? negativePrompt;
-  final List<String> tags;
+  final String hintText;
+
+  @override
+  State<_JsonInputDialog> createState() => _JsonInputDialogState();
+}
+
+class _JsonInputDialogState extends State<_JsonInputDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        minLines: 8,
+        maxLines: 14,
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('导入'),
+        ),
+      ],
+    );
+  }
 }
 
 class _HomeSummary {

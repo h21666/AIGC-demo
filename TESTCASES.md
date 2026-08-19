@@ -81,6 +81,9 @@
 - Persist general settings in SQLite.
 - Clear cache directories through the settings repository boundary.
 - Append, filter, export, and clear structured logs.
+- Route prompt, task, asset, settings, and log page operations through presentation controllers.
+- Ensure settings logs never contain API key values.
+- Record selected, exported, skipped, and failed counts for asset export actions.
 - Run a widget smoke test against the app shell.
 - Run an integration smoke test against the app entry point.
 - Verify cloud and local exception classification paths.
@@ -96,3 +99,16 @@
 ## Manual APK Testing
 
 - `docs/APK_TESTCASE.md` records the phone-side manual MVP test flow for installing the ARM64 APK, creating prompts, creating tasks, checking task controls, configuring API key behavior, inspecting the asset library, and validating graceful error handling.
+
+## Execution Status (2026-08-20)
+
+- Passed: 15 targeted automated tests covering asset persistence/preview/export, settings/logs, cloud success simulation, authentication errors, timeout retry, missing-key failure, and local fallback planning.
+- Passed: ARM64 Debug APK compilation at `build/app/outputs/flutter-apk/app-debug.apk`.
+- Passed: ARM64 Debug APK installation on Xiaomi `2510DRK44C`, Android 16, `arm64-v8a`.
+- Passed: application launch, foreground activity, rendered creator dashboard, and no fatal startup exception.
+- Completed by user: basic no-key local workflow testing.
+- Implemented in the current build: missing API key marks queued jobs as authentication failures without retries or saved assets.
+- Implemented in the current build: cancelled tasks are hidden from the production queue while persisted records and generated assets remain intact.
+- Blocked by missing API key: successful SiliconFlow generation, image download, asset persistence, thumbnail verification, and Android gallery export.
+- Not completed: real TFLite model inference, release signing, Release APK, and demo recording.
+- Environment limitation: the static analyzer session stalled before returning a final result and is not recorded as passed; the targeted automated suite and APK compilation passed separately.
