@@ -38,12 +38,15 @@
 
 ## Phase 4 Cloud Generation
 
-- Store and retrieve API keys through secure storage.
+- Store and retrieve API keys through the `SecureApiKeyStore` boundary.
 - Send SiliconFlow generation requests through a Dio client.
 - Handle 401, 429, timeout, and no-network errors.
 - Retry transient failures according to queue policy.
+- Do not retry authentication failures.
 - Download generated images and persist file metadata.
-- Link successful jobs to saved image assets.
+- Link successful jobs to saved generated assets.
+- Complete the corresponding generation job after asset persistence.
+- Mark failed jobs according to retry exhaustion and error type.
 
 ## Later Phases
 

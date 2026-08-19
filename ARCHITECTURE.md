@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 3 adds the durable generation queue on top of the SQLite-backed prompt module.
+Phase 4 adds SiliconFlow cloud image generation, error classification, image downloading, generated asset persistence, and task queue integration.
 
 ## Directory Layout
 
@@ -18,8 +18,14 @@ lib/
         app_database_schema.dart
     data/
       repositories/
+        sqlite_generated_asset_repository.dart
         sqlite_generation_task_repository.dart
         sqlite_prompt_repository.dart
+      clients/
+        silicon_flow_image_client.dart
+      services/
+        cloud_generation_queue_runner.dart
+        generated_image_downloader.dart
     domain/
       domain.dart
       entities/
@@ -32,7 +38,7 @@ lib/
 - `app`: Flutter application entry and placeholder shell.
 - `core`: shared infrastructure contracts and constants, starting with SQLite schema definitions.
 - `domain`: pure Dart entities, enums, and repository interfaces. This layer does not depend on Flutter widgets, SQLite packages, HTTP clients, or platform APIs.
-- `data`: concrete repository implementations for prompt persistence and generation task queues.
+- `data`: concrete repository implementations, SiliconFlow HTTP client, generated image downloader, and queue runner.
 - `features`: planned for later UI modules such as prompts, task queue, asset library, settings, and logs.
 
 ## Domain Model
@@ -77,3 +83,12 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - App restart recovery changes running tasks and jobs to paused.
 - Pause does not cancel a running cloud request; it prevents later jobs from starting.
 - Partial final failure is completed with a non-zero failed count. A task is failed only when every job finally fails, or when a task-level fatal error prevents startup.
+
+## Cloud Generation
+
+- SiliconFlow image requests use `POST /v1/images/generations`.
+- The client sends `Authorization: Bearer <apiKey>`.
+- Generated image URLs are downloaded immediately and stored as `GeneratedAsset` records.
+- Error classification distinguishes authentication, rate limit, timeout, no-network, invalid request, server, and unknown failures.
+- Automatic retry is limited to retryable failures and respects each job's `maxAttempts`.
+- The first production secure-storage implementation is behind the `SecureApiKeyStore` interface. The current repository includes an in-memory implementation for tests and local core development because `flutter_secure_storage` requires Windows Developer Mode in this environment.

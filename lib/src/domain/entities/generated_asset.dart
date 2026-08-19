@@ -14,7 +14,7 @@ class GeneratedAsset {
     this.sizeBytes,
     this.mimeType,
     this.seed,
-    this.promptSnapshot,
+    this.promptSnapshot = const {},
     this.metadata = const {},
     this.exportedAt,
   });
@@ -30,7 +30,7 @@ class GeneratedAsset {
   final int? sizeBytes;
   final String? mimeType;
   final String? seed;
-  final String? promptSnapshot;
+  final Map<String, Object?> promptSnapshot;
   final Map<String, Object?> metadata;
   final DateTime createdAt;
   final DateTime? exportedAt;
