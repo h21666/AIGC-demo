@@ -51,7 +51,7 @@
 
 ## Later Phases
 
-- Final polish, release notes, and demo preparation.
+- Deployment target selection, signing setup, and store/internal distribution.
 
 ## Phase 5 Asset Library
 
@@ -84,3 +84,11 @@
 - Run a widget smoke test against the app shell.
 - Run an integration smoke test against the app entry point.
 - Verify cloud and local exception classification paths.
+
+## Phase 8 Final Polish
+
+- README lists current phase status, quality gates, and release documents.
+- Architecture document reflects the implemented modules and known environment limits.
+- Test case document separates completed phases from deployment follow-up.
+- Deployment checklist identifies Android, web, and source-code handoff options.
+- Demo script explains the product flow without requiring unfinished full pages.

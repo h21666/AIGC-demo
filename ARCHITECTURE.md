@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 7 adds settings and logging foundations plus test coverage for API key settings, cache cleanup, integration smoke checks, and exception handling.
+Phase 8 refreshes release-facing documentation and prepares deployment decisions without changing the stable core architecture.
 
 ## Directory Layout
 
@@ -125,3 +125,10 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - `SqliteSettingsRepository` stores key-value preferences and can clear file-system cache directories.
 - `AppSettingsService` wraps secure API key storage together with general app settings and cache cleanup.
 - `SqliteLogRepository` stores structured logs, filters them by level and age, exports them as JSON, and clears the log table.
+
+## Release Readiness
+
+- Core modules are covered by unit tests.
+- The app shell has widget and integration smoke tests.
+- Windows integration execution requires Visual Studio tooling.
+- Android device testing and demo recording remain manual release tasks.

@@ -16,6 +16,7 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 6. Local TFLite: model service, interpreter, isolate execution, device capability checks, exception handling, and fallback to cloud.
 7. Settings, logs, and tests: API key settings, log viewing/export, cache cleanup, widget tests, integration tests, and exception tests.
 8. Final polish: README, architecture refresh, test case refresh, Git feature branches, merge conflict simulation, Android device testing, and demo recording.
+9. Deployment preparation: select a release target, configure signing, verify platform build tooling, and prepare internal distribution.
 
 ## Core Requirements
 
@@ -48,6 +49,7 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 - Album export and media permission handling are accessed through interfaces so Android/iOS implementations can be swapped in without changing domain logic.
 - Local TFLite planning uses an isolate-backed interpreter boundary and falls back to the existing cloud request shape when local execution is not suitable.
 - When local inference succeeds, it may refine the prompt before the cloud request is sent.
+- Deployment is treated as a separate release activity after architecture and test readiness are confirmed.
 
 ## Out Of Scope For Phase 1
 
