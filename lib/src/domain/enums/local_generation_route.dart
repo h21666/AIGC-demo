@@ -1,0 +1,1 @@
+enum LocalGenerationRoute { local, cloud }

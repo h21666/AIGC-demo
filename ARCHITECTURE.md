@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 5 adds the generated asset library core: metadata queries, thumbnails, preview data, multi-select export, permission abstraction, and image memory safeguards.
+Phase 6 adds local TFLite planning: device capability checks, isolate execution, local inference outcomes, and automatic fallback planning to cloud generation.
 
 ## Directory Layout
 
@@ -27,8 +27,11 @@ lib/
         asset_library_service.dart
         asset_thumbnail_service.dart
         cloud_generation_queue_runner.dart
+        default_local_model_capability_service.dart
         file_album_exporter.dart
         generated_image_downloader.dart
+        isolate_local_tflite_interpreter.dart
+        local_tflite_model_service.dart
     domain/
       domain.dart
       entities/
@@ -104,3 +107,10 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - `AssetLibraryService` supports filtered listing, single preview lookup, multi-select export, skipped count, failure count, and per-asset failure messages.
 - `MediaPermissionService` and `AlbumExporter` isolate mobile permission/gallery plugins from domain logic.
 - The checked-in exporter copies files to a target directory for tests and desktop development. Android/iOS gallery export can be added behind `AlbumExporter` when plugin symlink support is available.
+
+## Local TFLite
+
+- `DeviceCapabilityService` inspects the current environment and decides whether local execution is worth attempting.
+- `LocalTfliteInterpreter` runs local inference through an isolate-backed worker and returns either a local result or a cloud fallback signal.
+- `LocalTfliteModelService` combines the capability report and interpreter output into a `HybridGenerationPlan`.
+- Cloud fallback uses the existing SiliconFlow request shape so later queue integration can switch routes without rewriting the prompt payload.

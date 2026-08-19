@@ -9,6 +9,7 @@ A Flutter app for prompt management, queued image generation, local asset storag
 - Phase 3: durable generation task queue
 - Phase 4: SiliconFlow cloud generation core integration
 - Phase 5: generated asset library core
+- Phase 6: local TFLite planning and cloud fallback
 
 ## Project Layout
 
@@ -19,4 +20,4 @@ A Flutter app for prompt management, queued image generation, local asset storag
 
 ## Next Milestones
 
-- Local TFLite support
+- Settings, logs, and tests

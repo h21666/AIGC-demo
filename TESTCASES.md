@@ -50,7 +50,6 @@
 
 ## Later Phases
 
-- TFLite device capability checks and fallback to cloud.
 - Settings, logs, cache cleanup, widget tests, integration tests, and exception tests.
 
 ## Phase 5 Asset Library
@@ -65,3 +64,11 @@
 - Deny export cleanly when media permission is not granted.
 - Continue batch export when one selected file is missing.
 - Report skipped IDs separately from failed file/export operations.
+
+## Phase 6 Local TFLite
+
+- Detect whether local execution is supported on the current device.
+- Run local inference through an isolate-backed interpreter.
+- Return a cloud fallback plan when the local model is unavailable.
+- Return a cloud fallback plan when local inference raises an exception.
+- Keep the cloud request payload aligned with the existing SiliconFlow request schema.

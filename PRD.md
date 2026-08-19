@@ -24,7 +24,7 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 - Users can pause, resume, cancel, and retry generation tasks.
 - The system stores generated image files and searchable metadata locally.
 - Cloud generation must handle authentication, rate limiting, timeout, and network failures.
-- Local TFLite generation is intentionally deferred so it does not block the first five modules.
+- Local TFLite support is introduced behind a capability check and cloud fallback so it does not block the first five modules.
 
 ## Product Decisions
 
@@ -45,6 +45,7 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 - Generated assets persist file metadata, prompt snapshot, source task/job, and export timestamp.
 - Asset lists must use thumbnails for preview flows to avoid decoding many original images at once.
 - Album export and media permission handling are accessed through interfaces so Android/iOS implementations can be swapped in without changing domain logic.
+- Local TFLite planning uses an isolate-backed interpreter boundary and falls back to the existing cloud request shape when local execution is not suitable.
 
 ## Out Of Scope For Phase 1
 

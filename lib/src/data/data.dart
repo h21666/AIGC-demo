@@ -1,6 +1,7 @@
 export 'clients/cloud_generation_exception.dart';
 export 'clients/image_generation_client.dart';
 export 'clients/silicon_flow_image_client.dart';
+export 'services/default_local_model_capability_service.dart';
 export 'repositories/sqlite_generated_asset_repository.dart';
 export 'repositories/sqlite_generation_task_repository.dart';
 export 'repositories/sqlite_prompt_repository.dart';
@@ -9,5 +10,7 @@ export 'services/asset_thumbnail_service.dart';
 export 'services/cloud_generation_queue_runner.dart';
 export 'services/file_album_exporter.dart';
 export 'services/generated_image_downloader.dart';
+export 'services/isolate_local_tflite_interpreter.dart';
+export 'services/local_tflite_model_service.dart';
 export 'services/static_media_permission_service.dart';
 export 'storage/in_memory_secure_api_key_store.dart';
