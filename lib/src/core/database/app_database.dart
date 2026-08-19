@@ -13,7 +13,8 @@ class AppDatabase {
     final existing = _database;
     if (existing != null && existing.isOpen) return existing;
 
-    final resolvedDatabasePath = databasePath ??
+    final resolvedDatabasePath =
+        databasePath ??
         path.join(await getDatabasesPath(), AppDatabaseSchema.databaseName);
     _database = await openDatabase(
       resolvedDatabasePath,
@@ -27,6 +28,13 @@ class AppDatabase {
         }
         for (final statement in AppDatabaseSchema.createIndexStatements) {
           await database.execute(statement);
+        }
+      },
+      onUpgrade: (database, oldVersion, newVersion) async {
+        if (oldVersion < 2 && newVersion >= 2) {
+          for (final statement in AppDatabaseSchema.migrateFrom1To2Statements) {
+            await database.execute(statement);
+          }
         }
       },
     );

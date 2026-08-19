@@ -22,12 +22,8 @@ class _SkeletonHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AIGC Studio'),
-      ),
-      body: const Center(
-        child: Text('Project skeleton ready'),
-      ),
+      appBar: AppBar(title: const Text('AIGC Studio')),
+      body: const Center(child: Text('Project skeleton ready')),
     );
   }
 }

@@ -41,20 +41,26 @@ void main() {
     });
 
     test('persists tasks and jobs with summary counters', () async {
-      await repository.saveTask(_task(
-        status: GenerationTaskStatus.pending,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-1',
-        status: GenerationJobStatus.pending,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-2',
-        status: GenerationJobStatus.completed,
-        promptVersionId: promptVersionId,
-      ));
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.pending,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.pending,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.completed,
+          promptVersionId: promptVersionId,
+        ),
+      );
 
       final task = await repository.getTaskById('task-1');
       expect(task, isNotNull);
@@ -70,20 +76,26 @@ void main() {
     });
 
     test('marks task completed when all jobs complete', () async {
-      await repository.saveTask(_task(
-        status: GenerationTaskStatus.pending,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-1',
-        status: GenerationJobStatus.completed,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-2',
-        status: GenerationJobStatus.completed,
-        promptVersionId: promptVersionId,
-      ));
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.pending,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.completed,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.completed,
+          promptVersionId: promptVersionId,
+        ),
+      );
 
       final task = await repository.getTaskById('task-1');
       expect(task, isNotNull);
@@ -92,76 +104,159 @@ void main() {
       expect(task.completedAt, isNotNull);
     });
 
-    test('pauses and resumes pending or running jobs', () async {
-      await repository.saveTask(_task(
-        status: GenerationTaskStatus.running,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-1',
-        status: GenerationJobStatus.running,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-2',
-        status: GenerationJobStatus.pending,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-3',
-        status: GenerationJobStatus.completed,
-        promptVersionId: promptVersionId,
-      ));
+    test(
+      'marks partial failure as completed with full processed progress',
+      () async {
+        await repository.saveTask(
+          _task(
+            status: GenerationTaskStatus.running,
+            promptVersionId: promptVersionId,
+          ),
+        );
+        await repository.saveJob(
+          _job(
+            id: 'job-1',
+            status: GenerationJobStatus.completed,
+            promptVersionId: promptVersionId,
+          ),
+        );
+        await repository.saveJob(
+          _job(
+            id: 'job-2',
+            status: GenerationJobStatus.failed,
+            promptVersionId: promptVersionId,
+            attempt: 4,
+            maxAttempts: 4,
+            errorMessage: 'quota',
+          ),
+        );
+
+        final task = await repository.getTaskById('task-1');
+        expect(task, isNotNull);
+        expect(task!.status, GenerationTaskStatus.completed);
+        expect(task.completedJobs, 1);
+        expect(task.failedJobs, 1);
+        expect(task.processedJobs, 2);
+        expect(task.progress, 1);
+      },
+    );
+
+    test('marks task failed when every job finally fails', () async {
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.failed,
+          promptVersionId: promptVersionId,
+          attempt: 4,
+          maxAttempts: 4,
+          errorMessage: 'timeout',
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.failed,
+          promptVersionId: promptVersionId,
+          attempt: 4,
+          maxAttempts: 4,
+          errorMessage: 'quota',
+        ),
+      );
+
+      final task = await repository.getTaskById('task-1');
+      expect(task, isNotNull);
+      expect(task!.status, GenerationTaskStatus.failed);
+      expect(task.completedJobs, 0);
+      expect(task.failedJobs, 2);
+      expect(task.isTerminal, isTrue);
+    });
+
+    test('pauses pending work without cancelling running jobs', () async {
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.pending,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-3',
+          status: GenerationJobStatus.completed,
+          promptVersionId: promptVersionId,
+        ),
+      );
 
       await repository.pauseTask('task-1');
 
       var task = await repository.getTaskById('task-1');
       expect(task!.status, GenerationTaskStatus.paused);
       var jobs = await repository.listJobs('task-1');
-      expect(
-        jobs.map((job) => job.status),
-        [
-          GenerationJobStatus.paused,
-          GenerationJobStatus.paused,
-          GenerationJobStatus.completed,
-        ],
-      );
+      expect(jobs.map((job) => job.status), [
+        GenerationJobStatus.running,
+        GenerationJobStatus.paused,
+        GenerationJobStatus.completed,
+      ]);
 
       await repository.resumeTask('task-1');
 
       task = await repository.getTaskById('task-1');
-      expect(task!.status, GenerationTaskStatus.pending);
+      expect(task!.status, GenerationTaskStatus.running);
       jobs = await repository.listJobs('task-1');
-      expect(
-        jobs.map((job) => job.status),
-        [
-          GenerationJobStatus.pending,
-          GenerationJobStatus.pending,
-          GenerationJobStatus.completed,
-        ],
-      );
+      expect(jobs.map((job) => job.status), [
+        GenerationJobStatus.running,
+        GenerationJobStatus.pending,
+        GenerationJobStatus.completed,
+      ]);
     });
 
     test('cancels unfinished jobs and task', () async {
-      await repository.saveTask(_task(
-        status: GenerationTaskStatus.running,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-1',
-        status: GenerationJobStatus.running,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-2',
-        status: GenerationJobStatus.failed,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-3',
-        status: GenerationJobStatus.completed,
-        promptVersionId: promptVersionId,
-      ));
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.failed,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-3',
+          status: GenerationJobStatus.completed,
+          promptVersionId: promptVersionId,
+        ),
+      );
 
       await repository.cancelTask('task-1');
 
@@ -169,37 +264,40 @@ void main() {
       expect(task!.status, GenerationTaskStatus.cancelled);
       expect(task.completedAt, isNotNull);
       final jobs = await repository.listJobs('task-1');
-      expect(
-        jobs.map((job) => job.status),
-        [
-          GenerationJobStatus.cancelled,
-          GenerationJobStatus.cancelled,
-          GenerationJobStatus.completed,
-        ],
-      );
+      expect(jobs.map((job) => job.status), [
+        GenerationJobStatus.cancelled,
+        GenerationJobStatus.cancelled,
+        GenerationJobStatus.completed,
+      ]);
     });
 
     test('retries failed jobs that have attempts left', () async {
-      await repository.saveTask(_task(
-        status: GenerationTaskStatus.failed,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-1',
-        status: GenerationJobStatus.failed,
-        promptVersionId: promptVersionId,
-        attempt: 1,
-        maxAttempts: 3,
-        errorMessage: 'timeout',
-      ));
-      await repository.saveJob(_job(
-        id: 'job-2',
-        status: GenerationJobStatus.failed,
-        promptVersionId: promptVersionId,
-        attempt: 3,
-        maxAttempts: 3,
-        errorMessage: 'quota',
-      ));
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.failed,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.failed,
+          promptVersionId: promptVersionId,
+          attempt: 1,
+          maxAttempts: 4,
+          errorMessage: 'timeout',
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.failed,
+          promptVersionId: promptVersionId,
+          attempt: 4,
+          maxAttempts: 4,
+          errorMessage: 'quota',
+        ),
+      );
 
       await repository.retryTask('task-1');
 
@@ -211,39 +309,47 @@ void main() {
       expect(jobs[0].attempt, 2);
       expect(jobs[0].errorMessage, isNull);
       expect(jobs[1].status, GenerationJobStatus.failed);
-      expect(jobs[1].attempt, 3);
+      expect(jobs[1].attempt, 4);
     });
 
     test('recovers running work after app restart', () async {
-      await repository.saveTask(_task(
-        status: GenerationTaskStatus.running,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-1',
-        status: GenerationJobStatus.running,
-        promptVersionId: promptVersionId,
-      ));
-      await repository.saveJob(_job(
-        id: 'job-2',
-        status: GenerationJobStatus.completed,
-        promptVersionId: promptVersionId,
-      ));
+      await repository.saveTask(
+        _task(
+          status: GenerationTaskStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-1',
+          status: GenerationJobStatus.running,
+          promptVersionId: promptVersionId,
+        ),
+      );
+      await repository.saveJob(
+        _job(
+          id: 'job-2',
+          status: GenerationJobStatus.completed,
+          promptVersionId: promptVersionId,
+        ),
+      );
       await database.close();
 
       final restartedDatabase = AppDatabase(databasePath: databasePath);
-      final restartedRepository = SqliteGenerationTaskRepository(restartedDatabase);
+      final restartedRepository = SqliteGenerationTaskRepository(
+        restartedDatabase,
+      );
       addTearDown(restartedDatabase.close);
 
       await restartedRepository.recoverUnfinishedTasks();
 
       final task = await restartedRepository.getTaskById('task-1');
-      expect(task!.status, GenerationTaskStatus.pending);
+      expect(task!.status, GenerationTaskStatus.paused);
       final jobs = await restartedRepository.listJobs('task-1');
-      expect(
-        jobs.map((job) => job.status),
-        [GenerationJobStatus.pending, GenerationJobStatus.completed],
-      );
+      expect(jobs.map((job) => job.status), [
+        GenerationJobStatus.paused,
+        GenerationJobStatus.completed,
+      ]);
     });
   });
 }
@@ -251,13 +357,15 @@ void main() {
 Future<String> _seedPrompt(AppDatabase database) async {
   final promptRepository = SqlitePromptRepository(database);
   final timestamp = DateTime.utc(2026, 8, 19, 12, 0, 0);
-  await promptRepository.save(Prompt(
-    id: 'prompt-1',
-    title: 'Prompt',
-    content: 'Prompt content',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  ));
+  await promptRepository.save(
+    Prompt(
+      id: 'prompt-1',
+      title: 'Prompt',
+      content: 'Prompt content',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    ),
+  );
   final version = await promptRepository.createVersion(
     promptId: 'prompt-1',
     content: 'Prompt content v1',
@@ -277,6 +385,11 @@ GenerationTask _task({
     status: status,
     provider: GenerationProvider.siliconFlow,
     requestPayload: const {'count': 2},
+    promptSnapshot: const {
+      'promptId': 'prompt-1',
+      'title': 'Prompt',
+      'content': 'Prompt content v1',
+    },
     createdAt: timestamp,
     updatedAt: timestamp,
     startedAt: status == GenerationTaskStatus.running ? timestamp : null,
@@ -288,7 +401,7 @@ GenerationJob _job({
   required GenerationJobStatus status,
   required String promptVersionId,
   int attempt = 0,
-  int maxAttempts = 3,
+  int maxAttempts = 4,
   String? errorMessage,
 }) {
   final timestamp = DateTime.utc(2026, 8, 19, 12, 0, 0);

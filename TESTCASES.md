@@ -11,12 +11,14 @@
 ## Phase 2 Prompt Module
 
 - Create, read, update, archive, and delete prompts.
-- Create prompt versions when prompt content changes.
+- Automatically create prompt versions when prompt snapshot content changes.
+- Store prompt version snapshots with title, content, and tags.
 - List prompt version history in descending order.
-- Roll back a prompt to a selected historical version.
+- Roll back a prompt by creating a new version from a selected historical version.
 - Add, remove, and filter by tags.
 - Export prompts, versions, and tags to JSON.
 - Import valid JSON without duplicating records.
+- Reject ID conflicts instead of silently overwriting local prompts.
 - Reject malformed JSON and preserve existing data.
 
 ## Phase 3 Task Queue
@@ -28,7 +30,11 @@
 - Cancel pending or running work and prevent further execution.
 - Retry failed tasks up to the configured retry limit.
 - Persist task and job state in SQLite.
-- Recover unfinished tasks after app restart.
+- Recover running tasks and jobs as paused after app restart.
+- Keep running jobs running when pause is requested and pause only later pending work.
+- Mark partial final failure as completed with a non-zero failed count.
+- Mark all-final-failed tasks as failed.
+- Calculate progress with processed jobs, not successful jobs only.
 
 ## Phase 4 Cloud Generation
 

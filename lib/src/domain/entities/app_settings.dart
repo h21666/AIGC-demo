@@ -1,5 +1,5 @@
-class AppSetting {
-  const AppSetting({
+class AppSettings {
+  const AppSettings({
     required this.key,
     required this.value,
     required this.updatedAt,

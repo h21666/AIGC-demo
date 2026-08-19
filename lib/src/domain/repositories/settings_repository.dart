@@ -1,9 +1,9 @@
-import '../entities/app_setting.dart';
+import '../entities/app_settings.dart';
 
 abstract interface class SettingsRepository {
-  Future<AppSetting?> get(String key);
+  Future<AppSettings?> get(String key);
 
-  Future<void> set(AppSetting setting);
+  Future<void> set(AppSettings setting);
 
   Future<void> remove(String key);
 

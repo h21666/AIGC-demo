@@ -63,7 +63,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   @override
   Future<void> updateTaskStatus(String id, GenerationTaskStatus status) async {
     final db = await _database.database;
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
     final values = <String, Object?>{
       'status': status.storageKey,
       'updated_at': now.toIso8601String(),
@@ -98,7 +98,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   @override
   Future<void> pauseTask(String id) async {
     final db = await _database.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       final rows = await txn.query(
         'generation_tasks',
@@ -112,12 +112,8 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
       await txn.update(
         'generation_jobs',
         {'status': GenerationJobStatus.paused.storageKey, 'updated_at': now},
-        where: 'task_id = ? AND status IN (?, ?)',
-        whereArgs: [
-          id,
-          GenerationJobStatus.pending.storageKey,
-          GenerationJobStatus.running.storageKey,
-        ],
+        where: 'task_id = ? AND status = ?',
+        whereArgs: [id, GenerationJobStatus.pending.storageKey],
       );
       await txn.update(
         'generation_tasks',
@@ -136,7 +132,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   @override
   Future<void> resumeTask(String id) async {
     final db = await _database.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       final rows = await txn.query(
         'generation_tasks',
@@ -177,7 +173,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   @override
   Future<void> cancelTask(String id) async {
     final db = await _database.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       final rows = await txn.query(
         'generation_tasks',
@@ -196,8 +192,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
           'updated_at': now,
           'error_message': null,
         },
-        where:
-            'task_id = ? AND status IN (?, ?, ?, ?)',
+        where: 'task_id = ? AND status IN (?, ?, ?, ?)',
         whereArgs: [
           id,
           GenerationJobStatus.pending.storageKey,
@@ -224,7 +219,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   @override
   Future<void> retryTask(String id) async {
     final db = await _database.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       final rows = await txn.query(
         'generation_tasks',
@@ -315,7 +310,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   @override
   Future<void> recoverUnfinishedTasks() async {
     final db = await _database.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       final rows = await txn.query(
         'generation_tasks',
@@ -327,7 +322,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
         await txn.update(
           'generation_jobs',
           {
-            'status': GenerationJobStatus.pending.storageKey,
+            'status': GenerationJobStatus.paused.storageKey,
             'started_at': null,
             'completed_at': null,
             'error_message': null,
@@ -339,7 +334,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
         await txn.update(
           'generation_tasks',
           {
-            'status': GenerationTaskStatus.pending.storageKey,
+            'status': GenerationTaskStatus.paused.storageKey,
             'completed_at': null,
             'error_message': null,
             'updated_at': now,
@@ -399,8 +394,7 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
       }
     }
 
-    final currentStatus =
-        _taskStatusFromStorage(taskRow['status'] as String);
+    final currentStatus = _taskStatusFromStorage(taskRow['status'] as String);
     final totalJobs = jobs.length;
     final derivedStatus = _deriveTaskStatus(
       currentStatus: currentStatus,
@@ -417,21 +411,23 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
       'completed_jobs': completedJobs,
       'failed_jobs': failedJobs,
       'status': derivedStatus.storageKey,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
       'error_message': derivedStatus == GenerationTaskStatus.failed
           ? errorMessage
           : null,
     };
     if (derivedStatus == GenerationTaskStatus.completed ||
+        derivedStatus == GenerationTaskStatus.failed ||
         derivedStatus == GenerationTaskStatus.cancelled) {
-      updated['completed_at'] = taskRow['completed_at'] as String? ??
-          DateTime.now().toIso8601String();
+      updated['completed_at'] =
+          taskRow['completed_at'] as String? ??
+          DateTime.now().toUtc().toIso8601String();
     } else {
       updated['completed_at'] = null;
     }
     if (derivedStatus == GenerationTaskStatus.running &&
         taskRow['started_at'] == null) {
-      updated['started_at'] = DateTime.now().toIso8601String();
+      updated['started_at'] = DateTime.now().toUtc().toIso8601String();
     }
     await db.update(
       'generation_tasks',
@@ -451,12 +447,15 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
     required int pausedJobs,
   }) {
     if (currentStatus == GenerationTaskStatus.completed ||
+        currentStatus == GenerationTaskStatus.failed ||
         currentStatus == GenerationTaskStatus.cancelled ||
         currentStatus == GenerationTaskStatus.paused) {
       return currentStatus;
     }
-    if (totalJobs > 0 && completedJobs == totalJobs) {
-      return GenerationTaskStatus.completed;
+    if (totalJobs > 0 && completedJobs + failedJobs == totalJobs) {
+      return completedJobs > 0
+          ? GenerationTaskStatus.completed
+          : GenerationTaskStatus.failed;
     }
     if (runningJobs > 0) {
       return GenerationTaskStatus.running;
@@ -478,74 +477,76 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   }
 
   GenerationTask _taskFromRow(Map<String, Object?> row) => GenerationTask(
-        id: row['id']! as String,
-        promptId: row['prompt_id']! as String,
-        promptVersionId: row['prompt_version_id']! as String,
-        status: _taskStatusFromStorage(row['status']! as String),
-        provider: _providerFromStorage(row['provider']! as String),
-        requestPayload: _decodeMap(row['request_json']),
-        totalJobs: row['total_jobs']! as int,
-        completedJobs: row['completed_jobs']! as int,
-        failedJobs: row['failed_jobs']! as int,
-        retryCount: row['retry_count']! as int,
-        createdAt: DateTime.parse(row['created_at']! as String),
-        updatedAt: DateTime.parse(row['updated_at']! as String),
-        startedAt: _parseDateTime(row['started_at']),
-        completedAt: _parseDateTime(row['completed_at']),
-        errorMessage: row['error_message'] as String?,
-      );
+    id: row['id']! as String,
+    promptId: row['prompt_id']! as String,
+    promptVersionId: row['prompt_version_id']! as String,
+    status: _taskStatusFromStorage(row['status']! as String),
+    provider: _providerFromStorage(row['provider']! as String),
+    requestPayload: _decodeMap(row['request_json']),
+    promptSnapshot: _decodeMap(row['prompt_snapshot']),
+    totalJobs: row['total_jobs']! as int,
+    completedJobs: row['completed_jobs']! as int,
+    failedJobs: row['failed_jobs']! as int,
+    retryCount: row['retry_count']! as int,
+    createdAt: DateTime.parse(row['created_at']! as String),
+    updatedAt: DateTime.parse(row['updated_at']! as String),
+    startedAt: _parseDateTime(row['started_at']),
+    completedAt: _parseDateTime(row['completed_at']),
+    errorMessage: row['error_message'] as String?,
+  );
 
   GenerationJob _jobFromRow(Map<String, Object?> row) => GenerationJob(
-        id: row['id']! as String,
-        taskId: row['task_id']! as String,
-        status: _jobStatusFromStorage(row['status']! as String),
-        provider: _providerFromStorage(row['provider']! as String),
-        promptVersionId: row['prompt_version_id']! as String,
-        requestPayload: _decodeMap(row['request_json']),
-        resultImageId: row['result_image_id'] as String?,
-        attempt: row['attempt']! as int,
-        maxAttempts: row['max_attempts']! as int,
-        createdAt: DateTime.parse(row['created_at']! as String),
-        updatedAt: DateTime.parse(row['updated_at']! as String),
-        startedAt: _parseDateTime(row['started_at']),
-        completedAt: _parseDateTime(row['completed_at']),
-        errorMessage: row['error_message'] as String?,
-      );
+    id: row['id']! as String,
+    taskId: row['task_id']! as String,
+    status: _jobStatusFromStorage(row['status']! as String),
+    provider: _providerFromStorage(row['provider']! as String),
+    promptVersionId: row['prompt_version_id']! as String,
+    requestPayload: _decodeMap(row['request_json']),
+    resultImageId: row['result_image_id'] as String?,
+    attempt: row['attempt']! as int,
+    maxAttempts: row['max_attempts']! as int,
+    createdAt: DateTime.parse(row['created_at']! as String),
+    updatedAt: DateTime.parse(row['updated_at']! as String),
+    startedAt: _parseDateTime(row['started_at']),
+    completedAt: _parseDateTime(row['completed_at']),
+    errorMessage: row['error_message'] as String?,
+  );
 
   Map<String, Object?> _taskToRow(GenerationTask value) => {
-        'id': value.id,
-        'prompt_id': value.promptId,
-        'prompt_version_id': value.promptVersionId,
-        'status': value.status.storageKey,
-        'provider': value.provider.storageKey,
-        'request_json': jsonEncode(value.requestPayload),
-        'total_jobs': value.totalJobs,
-        'completed_jobs': value.completedJobs,
-        'failed_jobs': value.failedJobs,
-        'retry_count': value.retryCount,
-        'created_at': value.createdAt.toIso8601String(),
-        'updated_at': value.updatedAt.toIso8601String(),
-        'started_at': value.startedAt?.toIso8601String(),
-        'completed_at': value.completedAt?.toIso8601String(),
-        'error_message': value.errorMessage,
-      };
+    'id': value.id,
+    'prompt_id': value.promptId,
+    'prompt_version_id': value.promptVersionId,
+    'status': value.status.storageKey,
+    'provider': value.provider.storageKey,
+    'request_json': jsonEncode(value.requestPayload),
+    'prompt_snapshot': jsonEncode(value.promptSnapshot),
+    'total_jobs': value.totalJobs,
+    'completed_jobs': value.completedJobs,
+    'failed_jobs': value.failedJobs,
+    'retry_count': value.retryCount,
+    'created_at': value.createdAt.toUtc().toIso8601String(),
+    'updated_at': value.updatedAt.toUtc().toIso8601String(),
+    'started_at': value.startedAt?.toUtc().toIso8601String(),
+    'completed_at': value.completedAt?.toUtc().toIso8601String(),
+    'error_message': value.errorMessage,
+  };
 
   Map<String, Object?> _jobToRow(GenerationJob value) => {
-        'id': value.id,
-        'task_id': value.taskId,
-        'status': value.status.storageKey,
-        'provider': value.provider.storageKey,
-        'prompt_version_id': value.promptVersionId,
-        'request_json': jsonEncode(value.requestPayload),
-        'result_image_id': value.resultImageId,
-        'attempt': value.attempt,
-        'max_attempts': value.maxAttempts,
-        'created_at': value.createdAt.toIso8601String(),
-        'updated_at': value.updatedAt.toIso8601String(),
-        'started_at': value.startedAt?.toIso8601String(),
-        'completed_at': value.completedAt?.toIso8601String(),
-        'error_message': value.errorMessage,
-      };
+    'id': value.id,
+    'task_id': value.taskId,
+    'status': value.status.storageKey,
+    'provider': value.provider.storageKey,
+    'prompt_version_id': value.promptVersionId,
+    'request_json': jsonEncode(value.requestPayload),
+    'result_image_id': value.resultImageId,
+    'attempt': value.attempt,
+    'max_attempts': value.maxAttempts,
+    'created_at': value.createdAt.toUtc().toIso8601String(),
+    'updated_at': value.updatedAt.toUtc().toIso8601String(),
+    'started_at': value.startedAt?.toUtc().toIso8601String(),
+    'completed_at': value.completedAt?.toUtc().toIso8601String(),
+    'error_message': value.errorMessage,
+  };
 
   Map<String, Object?> _decodeMap(Object? value) {
     if (value is String && value.isNotEmpty) {
@@ -563,28 +564,28 @@ class SqliteGenerationTaskRepository implements GenerationTaskRepository {
   }
 
   GenerationTaskStatus _taskStatusFromStorage(String value) => switch (value) {
-        'pending' => GenerationTaskStatus.pending,
-        'running' => GenerationTaskStatus.running,
-        'paused' => GenerationTaskStatus.paused,
-        'failed' => GenerationTaskStatus.failed,
-        'completed' => GenerationTaskStatus.completed,
-        'cancelled' => GenerationTaskStatus.cancelled,
-        _ => throw FormatException('Unknown task status: $value'),
-      };
+    'pending' => GenerationTaskStatus.pending,
+    'running' => GenerationTaskStatus.running,
+    'paused' => GenerationTaskStatus.paused,
+    'failed' => GenerationTaskStatus.failed,
+    'completed' => GenerationTaskStatus.completed,
+    'cancelled' => GenerationTaskStatus.cancelled,
+    _ => throw FormatException('Unknown task status: $value'),
+  };
 
   GenerationJobStatus _jobStatusFromStorage(String value) => switch (value) {
-        'pending' => GenerationJobStatus.pending,
-        'running' => GenerationJobStatus.running,
-        'paused' => GenerationJobStatus.paused,
-        'failed' => GenerationJobStatus.failed,
-        'completed' => GenerationJobStatus.completed,
-        'cancelled' => GenerationJobStatus.cancelled,
-        _ => throw FormatException('Unknown job status: $value'),
-      };
+    'pending' => GenerationJobStatus.pending,
+    'running' => GenerationJobStatus.running,
+    'paused' => GenerationJobStatus.paused,
+    'failed' => GenerationJobStatus.failed,
+    'completed' => GenerationJobStatus.completed,
+    'cancelled' => GenerationJobStatus.cancelled,
+    _ => throw FormatException('Unknown job status: $value'),
+  };
 
   GenerationProvider _providerFromStorage(String value) => switch (value) {
-        'silicon_flow' => GenerationProvider.siliconFlow,
-        'local_tflite' => GenerationProvider.localTflite,
-        _ => throw FormatException('Unknown provider: $value'),
-      };
+    'silicon_flow' => GenerationProvider.siliconFlow,
+    'local_tflite' => GenerationProvider.localTflite,
+    _ => throw FormatException('Unknown provider: $value'),
+  };
 }

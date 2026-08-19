@@ -1,7 +1,7 @@
 import '../enums/log_level.dart';
 
-class AppLogEntry {
-  const AppLogEntry({
+class AppLog {
+  const AppLog({
     required this.id,
     required this.level,
     required this.message,

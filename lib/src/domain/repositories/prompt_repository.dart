@@ -4,10 +4,7 @@ import '../entities/prompt_version.dart';
 abstract interface class PromptRepository {
   Future<Prompt?> getById(String id);
 
-  Future<List<Prompt>> list({
-    Set<String>? tags,
-    bool includeArchived = false,
-  });
+  Future<List<Prompt>> list({Set<String>? tags, bool includeArchived = false});
 
   Future<void> save(Prompt prompt);
 
@@ -17,7 +14,9 @@ abstract interface class PromptRepository {
 
   Future<PromptVersion> createVersion({
     required String promptId,
+    String? title,
     required String content,
+    List<String>? tags,
     String? negativePrompt,
     String? changeNote,
   });
@@ -31,5 +30,17 @@ abstract interface class PromptRepository {
 
   Future<String> exportJson();
 
-  Future<void> importJson(String json);
+  Future<PromptImportResult> importJson(String json);
+}
+
+class PromptImportResult {
+  const PromptImportResult({
+    required this.importedCount,
+    required this.skippedCount,
+    required this.failedCount,
+  });
+
+  final int importedCount;
+  final int skippedCount;
+  final int failedCount;
 }

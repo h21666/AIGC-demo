@@ -4,7 +4,7 @@
 
 AIGC Studio is a Flutter app for managing reusable image generation prompts, running image generation through a reliable task queue, and collecting generated assets in a local material library.
 
-The first implementation phase only establishes the project skeleton. It does not include complete product pages or production API integration.
+The first implementation phases prioritize data models, core logic, SQLite persistence, and architecture. Complete product pages are deferred until the domain, schema, and state machines are stable.
 
 ## Scope By Phase
 
@@ -25,6 +25,21 @@ The first implementation phase only establishes the project skeleton. It does no
 - The system stores generated image files and searchable metadata locally.
 - Cloud generation must handle authentication, rate limiting, timeout, and network failures.
 - Local TFLite generation is intentionally deferred so it does not block the first five modules.
+
+## Product Decisions
+
+- This version has no account system, project/workspace model, cloud backup, or multi-device sync.
+- IDs use UUIDs rather than SQLite auto-increment values.
+- Persisted timestamps use UTC.
+- `GenerationTask` is the batch concept; no separate `Batch` entity is added.
+- Generated image metadata uses `GeneratedAsset` naming.
+- Prompt tags are free-form and normalized by trimming, dropping empty tags, and deduplicating within the prompt.
+- Prompt versions are automatically created after a valid save transaction when the prompt snapshot changes.
+- Rolling back a prompt creates a new version based on the selected historical snapshot.
+- Queue concurrency is fixed at 1 for the first version.
+- Default retry policy is `maxRetries = 3`, meaning at most 4 total executions per job.
+- Running work is recovered as paused after app restart.
+- Partial final job failure still completes the task with `failedCount > 0`; only all-final-failed tasks become failed.
 
 ## Out Of Scope For Phase 1
 

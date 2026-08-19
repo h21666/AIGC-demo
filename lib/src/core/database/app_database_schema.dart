@@ -2,7 +2,7 @@ class AppDatabaseSchema {
   const AppDatabaseSchema._();
 
   static const databaseName = 'aigc_studio.db';
-  static const version = 1;
+  static const version = 2;
 
   static const createTableStatements = <String>[
     '''
@@ -24,7 +24,9 @@ CREATE TABLE prompt_versions (
   id TEXT PRIMARY KEY,
   prompt_id TEXT NOT NULL,
   version_number INTEGER NOT NULL,
+  title TEXT NOT NULL,
   content TEXT NOT NULL,
+  tags_json TEXT NOT NULL DEFAULT '[]',
   negative_prompt TEXT,
   change_note TEXT,
   created_at TEXT NOT NULL,
@@ -56,6 +58,7 @@ CREATE TABLE generation_tasks (
   status TEXT NOT NULL,
   provider TEXT NOT NULL,
   request_json TEXT NOT NULL DEFAULT '{}',
+  prompt_snapshot TEXT NOT NULL DEFAULT '{}',
   total_jobs INTEGER NOT NULL DEFAULT 0,
   completed_jobs INTEGER NOT NULL DEFAULT 0,
   failed_jobs INTEGER NOT NULL DEFAULT 0,
@@ -79,7 +82,7 @@ CREATE TABLE generation_jobs (
   request_json TEXT NOT NULL DEFAULT '{}',
   result_image_id TEXT,
   attempt INTEGER NOT NULL DEFAULT 0,
-  max_attempts INTEGER NOT NULL DEFAULT 3,
+  max_attempts INTEGER NOT NULL DEFAULT 4,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   started_at TEXT,
@@ -90,7 +93,7 @@ CREATE TABLE generation_jobs (
 );
 ''',
     '''
-CREATE TABLE image_assets (
+CREATE TABLE generated_assets (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
   file_path TEXT NOT NULL,
@@ -134,7 +137,16 @@ CREATE TABLE app_logs (
     'CREATE INDEX idx_generation_tasks_updated_at ON generation_tasks(updated_at);',
     'CREATE INDEX idx_generation_jobs_task_id ON generation_jobs(task_id);',
     'CREATE INDEX idx_generation_jobs_status ON generation_jobs(status);',
-    'CREATE INDEX idx_image_assets_created_at ON image_assets(created_at);',
+    'CREATE INDEX idx_generated_assets_created_at ON generated_assets(created_at);',
     'CREATE INDEX idx_app_logs_created_at ON app_logs(created_at);',
+  ];
+
+  static const migrateFrom1To2Statements = <String>[
+    'ALTER TABLE prompt_versions ADD COLUMN title TEXT NOT NULL DEFAULT \'\';',
+    'ALTER TABLE prompt_versions ADD COLUMN tags_json TEXT NOT NULL DEFAULT \'[]\';',
+    'ALTER TABLE generation_tasks ADD COLUMN prompt_snapshot TEXT NOT NULL DEFAULT \'{}\';',
+    'ALTER TABLE image_assets RENAME TO generated_assets;',
+    'UPDATE generation_jobs SET max_attempts = 4 WHERE max_attempts = 3;',
+    'CREATE INDEX IF NOT EXISTS idx_generated_assets_created_at ON generated_assets(created_at);',
   ];
 }

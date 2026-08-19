@@ -11,6 +11,7 @@ class GenerationTask {
     required this.createdAt,
     required this.updatedAt,
     this.requestPayload = const {},
+    this.promptSnapshot = const {},
     this.totalJobs = 0,
     this.completedJobs = 0,
     this.failedJobs = 0,
@@ -26,6 +27,7 @@ class GenerationTask {
   final GenerationTaskStatus status;
   final GenerationProvider provider;
   final Map<String, Object?> requestPayload;
+  final Map<String, Object?> promptSnapshot;
   final int totalJobs;
   final int completedJobs;
   final int failedJobs;
@@ -38,5 +40,13 @@ class GenerationTask {
 
   bool get isTerminal =>
       status == GenerationTaskStatus.completed ||
+      status == GenerationTaskStatus.failed ||
       status == GenerationTaskStatus.cancelled;
+
+  int get processedJobs => completedJobs + failedJobs;
+
+  double get progress {
+    if (totalJobs == 0) return 0;
+    return processedJobs / totalJobs;
+  }
 }

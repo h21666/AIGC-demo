@@ -13,7 +13,7 @@ class GenerationJob {
     this.requestPayload = const {},
     this.resultImageId,
     this.attempt = 0,
-    this.maxAttempts = 3,
+    this.maxAttempts = 4,
     this.startedAt,
     this.completedAt,
     this.errorMessage,

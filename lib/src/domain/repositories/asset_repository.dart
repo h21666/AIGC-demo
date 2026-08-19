@@ -1,15 +1,15 @@
-import '../entities/image_asset.dart';
+import '../entities/generated_asset.dart';
 
 abstract interface class AssetRepository {
-  Future<ImageAsset?> getById(String id);
+  Future<GeneratedAsset?> getById(String id);
 
-  Future<List<ImageAsset>> list({
+  Future<List<GeneratedAsset>> list({
     String? taskId,
     DateTime? createdAfter,
     DateTime? createdBefore,
   });
 
-  Future<void> save(ImageAsset asset);
+  Future<void> save(GeneratedAsset asset);
 
   Future<void> delete(String id);
 

@@ -1,9 +1,9 @@
-enum ImageAssetSource {
+enum GeneratedAssetSource {
   cloud('cloud'),
   local('local'),
   imported('imported');
 
-  const ImageAssetSource(this.storageKey);
+  const GeneratedAssetSource(this.storageKey);
 
   final String storageKey;
 }

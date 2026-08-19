@@ -1,7 +1,7 @@
-import '../enums/image_asset_source.dart';
+import '../enums/generated_asset_source.dart';
 
-class ImageAsset {
-  const ImageAsset({
+class GeneratedAsset {
+  const GeneratedAsset({
     required this.id,
     required this.source,
     required this.filePath,
@@ -20,7 +20,7 @@ class ImageAsset {
   });
 
   final String id;
-  final ImageAssetSource source;
+  final GeneratedAssetSource source;
   final String filePath;
   final String? taskId;
   final String? jobId;
