@@ -42,6 +42,9 @@ The first implementation phases prioritize data models, core logic, SQLite persi
 - Partial final job failure still completes the task with `failedCount > 0`; only all-final-failed tasks become failed.
 - SiliconFlow image URLs must be downloaded and persisted immediately after generation.
 - API key storage is accessed through a secure-storage boundary. The first checked-in implementation for tests is in-memory; production secure storage is enabled when the platform plugin environment is available.
+- Generated assets persist file metadata, prompt snapshot, source task/job, and export timestamp.
+- Asset lists must use thumbnails for preview flows to avoid decoding many original images at once.
+- Album export and media permission handling are accessed through interfaces so Android/iOS implementations can be swapped in without changing domain logic.
 
 ## Out Of Scope For Phase 1
 

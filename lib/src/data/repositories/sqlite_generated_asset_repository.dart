@@ -29,6 +29,7 @@ class SqliteGeneratedAssetRepository implements AssetRepository {
     String? taskId,
     DateTime? createdAfter,
     DateTime? createdBefore,
+    int? limit,
   }) async {
     final db = await _database.database;
     final clauses = <String>[];
@@ -50,8 +51,22 @@ class SqliteGeneratedAssetRepository implements AssetRepository {
       where: clauses.isEmpty ? null : clauses.join(' AND '),
       whereArgs: args,
       orderBy: 'created_at DESC',
+      limit: limit,
     );
     return rows.map(_assetFromRow).toList();
+  }
+
+  @override
+  Future<List<GeneratedAsset>> listByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final db = await _database.database;
+    final rows = await db.query(
+      'generated_assets',
+      where: 'id IN (${List.filled(ids.length, '?').join(', ')})',
+      whereArgs: ids,
+    );
+    final byId = {for (final row in rows.map(_assetFromRow)) row.id: row};
+    return ids.map((id) => byId[id]).whereType<GeneratedAsset>().toList();
   }
 
   @override
@@ -62,6 +77,21 @@ class SqliteGeneratedAssetRepository implements AssetRepository {
       _assetToRow(asset),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  @override
+  Future<void> saveAll(List<GeneratedAsset> assets) async {
+    if (assets.isEmpty) return;
+    final db = await _database.database;
+    await db.transaction((txn) async {
+      for (final asset in assets) {
+        await txn.insert(
+          'generated_assets',
+          _assetToRow(asset),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 
   @override

@@ -50,7 +50,18 @@
 
 ## Later Phases
 
-- Asset library thumbnail, preview, multi-select, and export workflows.
-- Permission denied and permission recovery paths.
 - TFLite device capability checks and fallback to cloud.
 - Settings, logs, cache cleanup, widget tests, integration tests, and exception tests.
+
+## Phase 5 Asset Library
+
+- Persist generated image metadata in SQLite.
+- List assets by task, date range, and limit.
+- Read assets by selected IDs while preserving selection order.
+- Generate thumbnails with bounded dimensions.
+- Build preview models that prefer thumbnails over original images.
+- Export selected assets through the album exporter boundary.
+- Mark exported assets with `exportedAt`.
+- Deny export cleanly when media permission is not granted.
+- Continue batch export when one selected file is missing.
+- Report skipped IDs separately from failed file/export operations.

@@ -8,15 +8,15 @@ A Flutter app for prompt management, queued image generation, local asset storag
 - Phase 2: SQLite-backed prompt module
 - Phase 3: durable generation task queue
 - Phase 4: SiliconFlow cloud generation core integration
+- Phase 5: generated asset library core
 
 ## Project Layout
 
 - `lib/src/domain`: entities, enums, and repository contracts
 - `lib/src/core/database`: SQLite schema and runtime database bootstrap
-- `lib/src/data`: SQLite repositories, SiliconFlow client, download service, and queue runner
+- `lib/src/data`: SQLite repositories, SiliconFlow client, queue runner, and asset library services
 - `lib/src/app`: app shell
 
 ## Next Milestones
 
-- Asset library
 - Local TFLite support
