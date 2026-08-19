@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 1 defines the project skeleton. It establishes stable names and boundaries before detailed implementation begins.
+Phase 2 adds the first real data feature: a SQLite-backed prompt module with prompt CRUD, version history, tag storage, rollback, and JSON import/export.
 
 ## Directory Layout
 
@@ -14,7 +14,11 @@ lib/
       aigc_studio_app.dart
     core/
       database/
+        app_database.dart
         app_database_schema.dart
+    data/
+      repositories/
+        sqlite_prompt_repository.dart
     domain/
       domain.dart
       entities/
@@ -27,7 +31,7 @@ lib/
 - `app`: Flutter application entry and placeholder shell.
 - `core`: shared infrastructure contracts and constants, starting with SQLite schema definitions.
 - `domain`: pure Dart entities, enums, and repository interfaces. This layer does not depend on Flutter widgets, SQLite packages, HTTP clients, or platform APIs.
-- `data`: planned for later repository implementations, SQLite access, API clients, secure storage, and file persistence.
+- `data`: concrete repository implementations. Phase 2 starts with SQLite prompt persistence.
 - `features`: planned for later UI modules such as prompts, task queue, asset library, settings, and logs.
 
 ## Domain Model
@@ -50,7 +54,7 @@ lib/
 
 ## SQLite Schema
 
-The schema is defined in `lib/src/core/database/app_database_schema.dart`.
+The schema is defined in `lib/src/core/database/app_database_schema.dart` and opened through `lib/src/core/database/app_database.dart`.
 
 Version 1 includes:
 
@@ -64,4 +68,4 @@ Version 1 includes:
 - `app_settings`
 - `app_logs`
 
-Runtime initialization will be added in Phase 2.
+Runtime initialization for the prompt module is implemented in Phase 2 and can be extended for later modules.
