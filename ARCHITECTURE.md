@@ -34,6 +34,7 @@ lib/
         file_album_exporter.dart
         generated_image_downloader.dart
         isolate_local_tflite_interpreter.dart
+        local_model_manager.dart
         local_tflite_model_service.dart
         platform_album_exporter.dart
         platform_media_permission_service.dart
@@ -122,6 +123,7 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 ## Local TFLite
 
 - `DeviceCapabilityService` inspects the current environment and decides whether local execution is worth attempting.
+- `LocalModelManager` streams a user-selected `.tflite` file into private application storage, validates its FlatBuffer identifier, reports file metadata, and removes only app-managed model files.
 - `LocalTfliteInterpreter` loads `tflite_flutter` inside an isolate, validates the one-input/one-RGB-output contract, runs inference, and writes a PNG result.
 - `LocalTfliteModelService` combines the capability report and interpreter output into a `HybridGenerationPlan`.
 - Local success is persisted directly as a `GeneratedAsset` with `source=local`; it does not call SiliconFlow.
@@ -137,7 +139,7 @@ Runtime initialization, prompt persistence, and generation task persistence are 
 - `LogController` coordinates log filtering, export, and clearing for the log viewer page.
 - `TaskController` coordinates task queue loading, pause/resume/cancel/retry actions, queue execution, and action logging.
 - `AssetController` coordinates memory-safe preview loading, selected-asset export, and export result logging.
-- `SettingsController` coordinates secure API key operations, cache cleanup, and settings action logging without recording secret values.
+- `SettingsController` coordinates secure API key operations, system model-file selection/import, cache cleanup, and settings action logging without recording secret values.
 
 ## Release Readiness
 

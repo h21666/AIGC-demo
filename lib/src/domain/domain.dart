@@ -7,6 +7,7 @@ export 'entities/generated_asset.dart';
 export 'entities/generated_asset_preview.dart';
 export 'entities/hybrid_generation_plan.dart';
 export 'entities/local_model_capability_report.dart';
+export 'entities/local_model_info.dart';
 export 'entities/local_tflite_request.dart';
 export 'entities/local_tflite_result.dart';
 export 'entities/prompt.dart';

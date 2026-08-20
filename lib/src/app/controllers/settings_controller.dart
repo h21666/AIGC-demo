@@ -1,7 +1,9 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/services/application_settings_service.dart';
 import '../../domain/entities/app_log.dart';
+import '../../domain/entities/local_model_info.dart';
 import '../../domain/enums/log_level.dart';
 import '../app_runtime.dart';
 
@@ -16,6 +18,7 @@ class SettingsController {
   final AppSettingsService service;
   final Uuid _uuid = const Uuid();
   static const localModelPathKey = 'local_model_path';
+  static const localModelNameKey = 'local_model_name';
 
   Future<String?> loadApiKey() => service.readApiKey();
 
@@ -36,6 +39,46 @@ class SettingsController {
     return setting?.value;
   }
 
+  Future<LocalModelInfo?> loadLocalModelInfo() async {
+    final modelPath = await loadLocalModelPath();
+    if (modelPath == null || modelPath.trim().isEmpty) return null;
+    final savedName = (await service.readSetting(localModelNameKey))?.value;
+    return runtime.localModels.inspect(modelPath, displayName: savedName);
+  }
+
+  Future<LocalModelInfo?> pickAndImportLocalModel() async {
+    const typeGroup = XTypeGroup(
+      label: 'TFLite model',
+      extensions: <String>['tflite'],
+    );
+    final picked = await openFile(acceptedTypeGroups: const [typeGroup]);
+    if (picked == null) return null;
+
+    final imported = await runtime.localModels.importModel(
+      fileName: picked.name,
+      bytes: picked.openRead(),
+    );
+    await service.saveSetting(localModelPathKey, imported.path);
+    await service.saveSetting(localModelNameKey, imported.fileName);
+    await _appendLog(
+      '本地 TFLite 模型已导入',
+      context: {
+        'fileName': imported.fileName,
+        'sizeBytes': imported.sizeBytes,
+        'deviceReady': imported.capability.canRunLocal,
+      },
+    );
+    return imported;
+  }
+
+  Future<void> removeLocalModel() async {
+    final modelPath = await loadLocalModelPath();
+    await runtime.localModels.removeManagedModel(modelPath);
+    await service.deleteSetting(localModelPathKey);
+    await service.deleteSetting(localModelNameKey);
+    await _appendLog('本地 TFLite 模型已移除');
+  }
+
   Future<bool> saveLocalModelPath(String value) async {
     final normalized = value.trim();
     if (normalized.isEmpty) {
@@ -53,12 +96,16 @@ class SettingsController {
     await _appendLog('应用缓存已清理');
   }
 
-  Future<void> _appendLog(String message) {
+  Future<void> _appendLog(
+    String message, {
+    Map<String, Object?> context = const {},
+  }) {
     return runtime.logs.append(
       AppLog(
         id: _uuid.v4(),
         level: LogLevel.info,
         message: message,
+        context: context,
         createdAt: DateTime.now().toUtc(),
       ),
     );

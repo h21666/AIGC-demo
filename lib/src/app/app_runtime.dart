@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../core/database/app_database.dart';
@@ -18,6 +19,7 @@ import '../data/services/default_local_model_capability_service.dart';
 import '../data/services/file_album_exporter.dart';
 import '../data/services/generated_image_downloader.dart';
 import '../data/services/isolate_local_tflite_interpreter.dart';
+import '../data/services/local_model_manager.dart';
 import '../data/services/local_tflite_model_service.dart';
 import '../data/services/platform_album_exporter.dart';
 import '../data/services/platform_media_permission_service.dart';
@@ -36,6 +38,7 @@ class AppRuntime {
     required this.queueRunner,
     required this.assetLibrary,
     required this.apiKeyStore,
+    required this.localModels,
   });
 
   final AppDatabase database;
@@ -47,6 +50,7 @@ class AppRuntime {
   final CloudGenerationQueueRunner queueRunner;
   final AssetLibraryService assetLibrary;
   final FlutterSecureApiKeyStore apiKeyStore;
+  final LocalModelManager localModels;
 
   Timer? _queueTimer;
 
@@ -96,6 +100,14 @@ Future<AppRuntime> createAppRuntime() async {
     cacheDirectories: [cacheDirectory, thumbnailDirectory],
   );
   const apiKeyStore = FlutterSecureApiKeyStore();
+  final applicationSupportDirectory = await getApplicationSupportDirectory();
+  const localCapabilityService = DefaultLocalModelCapabilityService();
+  final localModels = LocalModelManager(
+    modelDirectory: Directory(
+      path.join(applicationSupportDirectory.path, 'aigc_studio_models'),
+    ),
+    capabilityService: localCapabilityService,
+  );
   final assetThumbnailService = AssetThumbnailService(
     assetRepository: assets,
     thumbnailDirectory: thumbnailDirectory,
@@ -122,7 +134,7 @@ Future<AppRuntime> createAppRuntime() async {
     imageDownloader: GeneratedImageDownloader(),
     outputDirectory: outputDirectory,
     localModelService: const LocalTfliteModelService(
-      capabilityService: DefaultLocalModelCapabilityService(),
+      capabilityService: localCapabilityService,
       interpreter: IsolateLocalTfliteInterpreter(),
     ),
   );
@@ -138,6 +150,7 @@ Future<AppRuntime> createAppRuntime() async {
     queueRunner: queueRunner,
     assetLibrary: assetLibrary,
     apiKeyStore: apiKeyStore,
+    localModels: localModels,
   );
   runtime.startQueuePolling();
   return runtime;

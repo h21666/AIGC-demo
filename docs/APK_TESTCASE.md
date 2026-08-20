@@ -88,6 +88,17 @@ Cloud image generation requires a valid SiliconFlow API key and network access. 
 | Pass/Fail |  |
 | Notes | Runtime builds store the key through `flutter_secure_storage`; verify persistence after app restart when testing on a real phone. |
 
+## TC-APK-004A Local Model File Selection
+
+| Field | Content |
+|---|---|
+| Priority | Must-Have |
+| Purpose | Verify that a user can configure local inference without entering an Android file path. |
+| Steps | 1. Copy a `.tflite` file to the phone. 2. Open `设置`. 3. Tap `选择模型文件`. 4. Select the file in Android's file picker. 5. Review its name, size, file check, and device compatibility result. 6. Restart the app and return to `设置`. 7. Tap `移除模型`. |
+| Expected Result | The app copies the model into private storage, displays stable model metadata after restart, and removes the managed copy only after confirmation. An invalid or renamed non-TFLite file shows a readable error and does not replace the previous valid model. |
+| Pass/Fail |  |
+| Notes | Tensor-contract compatibility is intentionally verified during the first real inference, after the basic file and device checks shown here. |
+
 ## TC-APK-005 Create Generation Task
 
 | Field | Content |

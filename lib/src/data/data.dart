@@ -15,6 +15,7 @@ export 'services/file_album_exporter.dart';
 export 'services/generated_image_downloader.dart';
 export 'services/isolate_local_tflite_interpreter.dart';
 export 'services/local_tflite_model_service.dart';
+export 'services/local_model_manager.dart';
 export 'services/platform_album_exporter.dart';
 export 'services/platform_media_permission_service.dart';
 export 'services/static_media_permission_service.dart';

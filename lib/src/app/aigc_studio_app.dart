@@ -12,6 +12,7 @@ import '../app/controllers/task_controller.dart';
 import '../app/pages/logs_page.dart';
 import '../domain/entities/generated_asset_preview.dart';
 import '../domain/entities/generation_task.dart';
+import '../domain/entities/local_model_info.dart';
 import '../domain/entities/prompt.dart';
 import '../domain/entities/prompt_version.dart';
 import '../domain/enums/generation_task_status.dart';
@@ -844,9 +845,9 @@ class _SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<_SettingsPage> {
   final _apiKeyController = TextEditingController();
-  final _localModelPathController = TextEditingController();
   var _hasApiKey = false;
-  var _hasLocalModelPath = false;
+  LocalModelInfo? _localModelInfo;
+  var _isImportingModel = false;
   late final LogController _logController;
   late final SettingsController _settingsController;
 
@@ -861,16 +862,15 @@ class _SettingsPageState extends State<_SettingsPage> {
   Future<void> _loadSettings() async {
     final results = await Future.wait([
       _settingsController.loadApiKey(),
-      _settingsController.loadLocalModelPath(),
+      _settingsController.loadLocalModelInfo(),
     ]);
     if (!mounted) return;
     final key = results[0];
-    final localModelPath = results[1];
+    final localModelInfo = results[1] as LocalModelInfo?;
     setState(() {
-      _hasApiKey = key != null && key.isNotEmpty;
-      _apiKeyController.text = key ?? '';
-      _hasLocalModelPath = localModelPath != null && localModelPath.isNotEmpty;
-      _localModelPathController.text = localModelPath ?? '';
+      _hasApiKey = key is String && key.isNotEmpty;
+      _apiKeyController.text = key is String ? key : '';
+      _localModelInfo = localModelInfo;
     });
   }
 
@@ -891,21 +891,57 @@ class _SettingsPageState extends State<_SettingsPage> {
     }
   }
 
-  Future<void> _saveLocalModelPath() async {
-    final saved = await _settingsController.saveLocalModelPath(
-      _localModelPathController.text,
+  Future<void> _pickLocalModel() async {
+    setState(() => _isImportingModel = true);
+    try {
+      final imported = await _settingsController.pickAndImportLocalModel();
+      if (!mounted || imported == null) return;
+      setState(() => _localModelInfo = imported);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('模型已导入并完成基础检查')),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      final message = error is FormatException
+          ? error.message
+          : '模型导入失败，请确认文件可读取后重试。';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message.toString()), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isImportingModel = false);
+    }
+  }
+
+  Future<void> _removeLocalModel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('移除本地模型'),
+        content: const Text('模型将从应用内部存储中删除，已创建的任务记录不会被删除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('移除'),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true) return;
+    await _settingsController.removeLocalModel();
     if (!mounted) return;
-    setState(() => _hasLocalModelPath = saved);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(saved ? '本地模型路径已保存' : '本地模型路径已清除')));
+    setState(() => _localModelInfo = null);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('本地模型已移除')));
   }
 
   @override
   void dispose() {
     _apiKeyController.dispose();
-    _localModelPathController.dispose();
     super.dispose();
   }
 
@@ -948,25 +984,32 @@ class _SettingsPageState extends State<_SettingsPage> {
           const Divider(height: 32),
           Text('本地 TFLite', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          TextField(
-            controller: _localModelPathController,
-            decoration: InputDecoration(
-              labelText: '模型文件路径',
-              hintText: '/data/user/0/.../model.tflite',
-              helperText: '模型文件不打包进 APK，请填写设备上可读取的绝对路径',
-              suffixIcon: Icon(
-                _hasLocalModelPath ? Icons.check_circle : Icons.memory_outlined,
-                color: _hasLocalModelPath ? Colors.green : Colors.orange,
-              ),
-              border: const OutlineInputBorder(),
-            ),
-          ),
+          if (_localModelInfo == null)
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.memory_outlined),
+              title: Text('尚未选择模型'),
+              subtitle: Text('请选择手机中的 .tflite 文件，应用会保存一份内部副本。'),
+            )
+          else
+            _LocalModelStatusCard(info: _localModelInfo!),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: _saveLocalModelPath,
-            icon: const Icon(Icons.memory_outlined),
-            label: const Text('保存本地模型路径'),
+            onPressed: _isImportingModel ? null : _pickLocalModel,
+            icon: _isImportingModel
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.folder_open_outlined),
+            label: Text(_isImportingModel ? '正在导入并检查…' : '选择模型文件'),
           ),
+          if (_localModelInfo != null)
+            TextButton.icon(
+              onPressed: _isImportingModel ? null : _removeLocalModel,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('移除模型'),
+            ),
           const Divider(height: 32),
           ListTile(
             leading: const Icon(Icons.cleaning_services_outlined),
@@ -995,6 +1038,115 @@ class _SettingsPageState extends State<_SettingsPage> {
       ),
     );
   }
+}
+
+class _LocalModelStatusCard extends StatelessWidget {
+  const _LocalModelStatusCard({required this.info});
+
+  final LocalModelInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  info.isReady ? Icons.check_circle : Icons.warning_amber,
+                  color: info.isReady ? Colors.green : colors.error,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        info.fileName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(_formatFileSize(info.sizeBytes)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            _ModelCheckRow(
+              passed: info.formatValid,
+              label: '文件检查',
+              detail: info.formatValid ? 'TFLite 格式通过' : '文件格式无效或文件已丢失',
+            ),
+            const SizedBox(height: 10),
+            _ModelCheckRow(
+              passed: info.capability.canRunLocal,
+              label: '设备兼容',
+              detail: info.capability.canRunLocal
+                  ? '${info.capability.platform} · ${info.capability.processorCount} 核 · 可尝试本地推理'
+                  : _capabilityReason(info),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '模型张量结构和实际推理兼容性会在首次生成时继续验证。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _capabilityReason(LocalModelInfo info) {
+    if (!info.exists) return '模型文件已丢失';
+    if (!info.capability.supportsIsolate) return '设备不支持后台推理';
+    if (info.capability.processorCount < 2) return '设备处理器能力不足';
+    return '当前设备未通过基础能力检查';
+  }
+}
+
+class _ModelCheckRow extends StatelessWidget {
+  const _ModelCheckRow({
+    required this.passed,
+    required this.label,
+    required this.detail,
+  });
+
+  final bool passed;
+  final String label;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          passed ? Icons.check_circle_outline : Icons.error_outline,
+          size: 20,
+          color: passed ? Colors.green : Theme.of(context).colorScheme.error,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(width: 72, child: Text(label)),
+        Expanded(child: Text(detail)),
+      ],
+    );
+  }
+}
+
+String _formatFileSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  final kilobytes = bytes / 1024;
+  if (kilobytes < 1024) return '${kilobytes.toStringAsFixed(1)} KB';
+  final megabytes = kilobytes / 1024;
+  if (megabytes < 1024) return '${megabytes.toStringAsFixed(1)} MB';
+  return '${(megabytes / 1024).toStringAsFixed(2)} GB';
 }
 
 class _PromptEditorDialog extends StatefulWidget {

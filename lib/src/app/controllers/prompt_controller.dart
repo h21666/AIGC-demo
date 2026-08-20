@@ -180,7 +180,16 @@ class PromptController {
         : null;
     if (provider == GenerationProvider.localTflite &&
         (localModelPath == null || localModelPath.isEmpty)) {
-      throw StateError('请先在设置中填写本地 TFLite 模型路径。');
+      throw StateError('请先在设置中选择本地 TFLite 模型。');
+    }
+    if (provider == GenerationProvider.localTflite) {
+      final modelInfo = await runtime.localModels.inspect(localModelPath!);
+      if (!modelInfo.formatValid) {
+        throw StateError('本地模型文件检查失败，请在设置中重新选择。');
+      }
+      if (!modelInfo.capability.canRunLocal) {
+        throw StateError('当前设备未通过本地推理基础能力检查。');
+      }
     }
     final task = GenerationTask(
       id: taskId,

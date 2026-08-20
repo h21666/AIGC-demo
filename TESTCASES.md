@@ -69,6 +69,9 @@
 ## Phase 6 Local TFLite
 
 - Detect whether local execution is supported on the current device.
+- Import a selected `.tflite` file into private application storage without loading the complete model into memory.
+- Reject an invalid TFLite header without replacing the last valid managed model.
+- Preserve external files when removing the app-managed model.
 - Load a real TFLite model through `tflite_flutter` inside an isolate.
 - Reject unsupported tensor counts, types, and output shapes with a readable fallback reason.
 - Convert a supported RGB output tensor to PNG.
